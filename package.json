@@ -1,0 +1,18 @@
+{
+  "name": "menus",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "css:watch": "NODE_ENV=development TAILWIND_MODE=watch tailwindcss -i main.css -o tailwind.css --watch --verbose",
+    "elm:watch": "NODE_ENV=development elm-live src/Main.elm --hot -- --output=elm.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "autoprefixer": "^10.4.0",
+    "elm-live": "^4.0.0-rc.1",
+    "postcss": "^8.3.11",
+    "tailwindcss": "^3.0.0-alpha.1"
+  }
+}
