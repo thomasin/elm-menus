@@ -134,8 +134,8 @@ update msg model =
             , cmd_
             )
 
-        MenuInputted Menus.Combobox.BackspacePressed ->
-            ( { model | selected = Maybe.withDefault [] (List.tail model.selected) }, Cmd.none )
+        --MenuInputted Menus.Combobox.BackspacePressed ->
+        --    ( { model | selected = Maybe.withDefault [] (List.tail model.selected) }, Cmd.none )
 
         MenuInputted inputted ->
             let

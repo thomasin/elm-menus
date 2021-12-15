@@ -1,4 +1,4 @@
-module Menus.Menu exposing (Config, MsgConfig, Focussed(..), State, button, changeFocus, closed, currentlyFocussed, focusOn, isOpen, onClose, onOpen, opened, li, ul, subscriptions)
+module Menus.Menu exposing (Config, MsgConfig, Focussed, State, button, closed, currentlyFocussed, isOpen, opened, li, ul, subscriptions, focussed)
 
 import Accessibility.Aria as Aria
 import Accessibility.Key as Key
@@ -11,96 +11,96 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode
 import Task
+import Menus.Internal.Base
 import Menus.Internal.KeyEvent
+import Menus.Internal.Focus
 import ZipList
 
 
-type alias Options options = ZipList.ZipList options
+type alias Focussed = Menus.Internal.Focus.Focussed Int
 
 
-selectPrevious : Options options -> Options options
-selectPrevious opts =
-    ZipList.backward opts
+type alias Config options =
+    { id : String
+    , optionsLength : options -> Int
+    }
 
 
-selectNext : Options options -> Options options
-selectNext opts =
-    ZipList.forward opts
+focussed : { msg : Focussed, state : State, config : Config options, msgConfig : MsgConfig msg, options : options } -> ( State, Cmd msg )
+focussed args =
+    Menus.Internal.Focus.focussed args.msg args.state args.msgConfig
+        { focusChange = \direction ->
+            let maybePreviousIdx = currentlyFocussed args.state in
+            case direction of
+                Menus.Internal.Base.Up ->
+                    case maybePreviousIdx of
+                        Just previousIdx ->
+                            Just (max (previousIdx - 1) 0)
+
+                        Nothing ->
+                            Just (args.config.optionsLength args.options - 1)
+
+                Menus.Internal.Base.Down ->
+                    case maybePreviousIdx of 
+                        Just previousIdx ->
+                            Just (min (previousIdx + 1) (args.config.optionsLength args.options - 1))
+
+                        Nothing ->
+                            Just 0
 
 
-selectIndex : Int -> Options options -> Options options
-selectIndex idx opts =
-    ZipList.goToIndex idx opts
-        |> Maybe.withDefault opts
+                Menus.Internal.Base.Left ->
+                    Nothing
+
+                Menus.Internal.Base.Right ->
+                    Nothing
+        , updateFocus = \newFocus ->
+            case args.state of
+                Opened _ ->
+                    Opened newFocus
+
+                Closed ->
+                    Closed
+        , valueToId = \idx ->
+            ids.li args.config.id (String.fromInt idx)
+        , optionContainerId = args.config.id
+        }
 
 
-previousIndex : Int -> Options options -> Int
-previousIndex idx _ =
-    max (idx - 1) 0
-
-
-nextIndex : Int -> Options options -> Int
-nextIndex idx opts =
-    min (idx + 1) (ZipList.length opts - 1)
-
-
-type Focussed value
-    = FocussedPrevious
-    | FocussedNext
-    | FocussedSpecific value
-    | FocusLost
-
-
-type State value
-    = Opened (Focus value)
+type State
+    = Opened (Menus.Internal.Focus.Focus Int)
     | Closed
 
 
-type Focus value
-    = HasFocus value
-    | NoFocus
-
-
-closed : State value
+closed : State
 closed =
     Closed
 
 
-opened : State value -> value -> State value
+opened : State -> Int -> State
 opened state default =
     case state of
         Opened value ->
             Opened value
 
         Closed ->
-            Opened (HasFocus default)
+            Opened (Menus.Internal.Focus.HasFocus default)
 
 
-currentlyFocussed : State value -> Maybe value
+currentlyFocussed : State -> Maybe Int
 currentlyFocussed state =
     case state of
-        Opened (HasFocus value) ->
-            Just value
-
-        Opened NoFocus ->
-            Nothing
+        Opened focus ->
+            Menus.Internal.Focus.toMaybe focus
 
         Closed ->
             Nothing
 
 
-type alias Config option value =
-    { id : String
-    , toLabel : option -> String
-    , valueToString : value -> String
-    }
-
-
-
-type alias MsgConfig value msg =
+type alias MsgConfig msg =
     { onOpened : msg
     , onClosed : msg
-    , onFocussed : Focussed value -> msg
+    , onFocussed : Focussed -> msg
     , onNoOp : msg
     }
 
@@ -112,25 +112,11 @@ ids =
     }
 
 
-focusOn : State value -> Maybe value -> State value
+focusOn : State -> Maybe Int -> State
 focusOn state focus =
     case state of
         Opened _ ->
-            Maybe.map (Opened << HasFocus) focus
-                |> Maybe.withDefault (Opened NoFocus)
-
-        Closed ->
-            Closed
-
-
-changeFocus : State value -> value -> value -> State value
-changeFocus state focus default =
-    case state of
-        Opened (HasFocus _) ->
-            Opened (HasFocus focus)
-
-        Opened NoFocus ->
-            Opened (HasFocus default)
+            Opened (Menus.Internal.Focus.fromMaybe focus)
 
         Closed ->
             Closed
@@ -144,22 +130,7 @@ changeFocus state focus default =
 -}
 
 
-onFocus : String -> MsgConfig value msg -> Cmd msg
-onFocus id msgConfig =
-    Task.attempt (always msgConfig.onNoOp) (Browser.Dom.focus id)
-
-
-onOpen : Config option value -> MsgConfig value msg -> Cmd msg
-onOpen config msgConfig =
-    onFocus config.id msgConfig
-
-
-onClose : Config option value -> MsgConfig value msg -> Cmd msg
-onClose config msgConfig =
-    onFocus (ids.control config.id) msgConfig
-
-
-subscriptions : State value -> MsgConfig value msg -> Sub msg
+subscriptions : State -> MsgConfig msg -> Sub msg
 subscriptions state msgConfig =
     case state of
         Opened _ ->
@@ -169,7 +140,7 @@ subscriptions state msgConfig =
             Sub.none
 
 
-isOpen : State value -> Bool
+isOpen : State -> Bool
 isOpen state =
     state /= Closed
 
@@ -184,7 +155,7 @@ type alias ButtonStyle =
     }
 
 
-button : State value -> Config option value -> MsgConfig value msg -> ButtonStyle -> (List (Html msg) -> Html msg)
+button : State -> Config options -> MsgConfig msg -> ButtonStyle -> (List (Html msg) -> Html msg)
 button state config msgConfig style =
     case state of
         Opened _ ->
@@ -196,6 +167,11 @@ button state config msgConfig style =
                 , Widget.hasMenuPopUp
                 , Widget.expanded True
                 , Aria.controls config.id
+                , Menus.Internal.KeyEvent.onKeyDown
+                    [ Menus.Internal.KeyEvent.tabWith msgConfig.onClosed { stopPropagation = False, preventDefault = False }
+                    , Menus.Internal.KeyEvent.escape msgConfig.onClosed
+                    , Menus.Internal.Focus.keyEvents msgConfig
+                    ]
                 ]
 
         Closed ->
@@ -220,7 +196,7 @@ type alias OptionsStyle =
     }
 
 
-ul : State value -> Config option value -> MsgConfig value msg -> OptionsStyle -> (List (Html msg) -> Html msg)
+ul : State -> Config options -> MsgConfig msg -> OptionsStyle -> (List (Html msg) -> Html msg)
 ul state config msgConfig style =
     Html.ul
         [ Attr.id config.id
@@ -229,13 +205,8 @@ ul state config msgConfig style =
         , Attr.class "z-10"
         , Attr.class style.classes
         , Attr.classList style.classList
-        , Key.tabbable (isOpen state)
-        , Menus.Internal.KeyEvent.onKeyDown
-            [ Menus.Internal.KeyEvent.escape msgConfig.onClosed
-            , Menus.Internal.KeyEvent.up (msgConfig.onFocussed FocussedPrevious)
-            , Menus.Internal.KeyEvent.down (msgConfig.onFocussed FocussedNext)
-            ]
-        , Events.onMouseLeave (msgConfig.onFocussed FocusLost)
+        , Key.tabbable False
+        , Menus.Internal.Focus.loseOnMouseLeave msgConfig
         ]
 
 
@@ -245,14 +216,14 @@ type alias OptionStyle =
     }
 
 
-li : Config option value -> MsgConfig value msg -> value -> OptionStyle -> (List (Html Never) -> Html msg)
-li config msgConfig value style =
+li : Config options -> MsgConfig msg -> Int -> OptionStyle -> (List (Html Never) -> Html msg)
+li config msgConfig idx style =
     List.map (Html.map never)
         >> Html.li
-            [ Attr.id (ids.li config.id (config.valueToString value))
+            [ Attr.id (ids.li config.id (String.fromInt idx))
             , Role.menuItem
             , Attr.class style.classes
             , Attr.classList style.classList
             , Key.tabbable False
-            , Events.onMouseOver (msgConfig.onFocussed (FocussedSpecific value))
+            , Menus.Internal.Focus.focusOnMouseMove msgConfig idx
             ]

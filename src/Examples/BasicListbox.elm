@@ -25,12 +25,12 @@ type Msg
     | NoOp
 
 
-menuConfig : Menus.Listbox.Config Examples.MenuItem.MenuItem Int
+menuConfig : Menus.Listbox.Config (Menus.Listbox.Options Examples.MenuItem.MenuItem) Examples.MenuItem.MenuItem Int (Menus.Listbox.Options Examples.MenuItem.MenuItem)
 menuConfig =
-    { id = "basic-listbox"
-    , toLabel = .label
-    , valueToString = String.fromInt
-    }
+    Menus.Listbox.ziplist
+        { id = "basic-listbox"
+        , optionToLabel = .label
+        }
 
 
 menuMsgConfig : Menus.Listbox.MsgConfig Int Msg
@@ -59,84 +59,60 @@ update msg model =
     case msg of
         MenuOpened ->
             ( { model | menu = Menus.Listbox.opened model.menu 0 }
-            , Menus.Listbox.onOpen menuConfig menuMsgConfig
+            , Cmd.none
             )
 
         MenuClosed ->
             ( { model | menu = Menus.Listbox.closed }
-            , Menus.Listbox.onClose menuConfig menuMsgConfig
+            , Cmd.none
             )
 
         MenuFocussed focussed ->
-            case focussed of
-                Menus.Listbox.FocussedSpecific idx ->
-                    ( { model | menu = Menus.Listbox.focusOn model.menu (Just idx) }
-                    , Cmd.none
-                    )
-
-                Menus.Listbox.FocussedPrevious ->
-                    case Menus.Listbox.currentlyFocussed model.menu of
-                        Just prevIdx ->
-                            ( { model | menu = Menus.Listbox.changeFocus model.menu (max (prevIdx - 1) 0) (ZipList.length model.options - 1) }
-                            , Cmd.none
-                            )
-
-                        Nothing ->
-                            ( model
-                            , Cmd.none
-                            )
-
-                Menus.Listbox.FocussedNext ->
-                    case Menus.Listbox.currentlyFocussed model.menu of
-                        Just prevIdx ->
-                            ( { model | menu = Menus.Listbox.changeFocus model.menu (min (prevIdx + 1) (ZipList.length model.options - 1)) 0 }
-                            , Cmd.none
-                            )
-
-                        Nothing ->
-                            ( model
-                            , Cmd.none
-                            )
-
-                Menus.Listbox.FocusLost ->
-                    ( { model | menu = Menus.Listbox.focusOn model.menu Nothing }
-                    , Cmd.none
-                    )
+            let
+                ( model_, cmd_ ) =
+                    Menus.Listbox.focussed
+                        { msg = focussed
+                        , state = model.menu
+                        , config = menuConfig
+                        , msgConfig = menuMsgConfig
+                        , options = model.options
+                        }
+            in
+            ( { model | menu = model_ }
+            , cmd_
+            )
 
         MenuSelected selected ->
             let
-                select : Int -> ZipList.ZipList Examples.MenuItem.MenuItem
-                select idx =
-                    ZipList.goToIndex idx model.options
-                        |> Maybe.withDefault model.options
+                ( selected_, model_, cmd_ ) =
+                    Menus.Listbox.selected
+                        { msg = selected
+                        , state = model.menu
+                        , config = menuConfig
+                        , msgConfig = menuMsgConfig
+                        , options = model.options
+                        , selected = model.options
+                        }
             in
-            case selected of
-                Menus.Listbox.SelectedSpecific idx ->
-                    ( { model | options = select idx, menu = Menus.Listbox.closed }
-                    , Menus.Listbox.onClose menuConfig menuMsgConfig
-                    )
+            ( { model | menu = model_, options = selected_ }
+            , cmd_
+            )
 
-                Menus.Listbox.SelectedPrevious ->
-                    ( { model | options = ZipList.backward model.options }
-                    , Cmd.none
-                    )
-
-                Menus.Listbox.SelectedNext ->
-                    ( { model | options = ZipList.forward model.options }
-                    , Cmd.none
-                    )
-
-                Menus.Listbox.SelectedFocussed ->
-                    case Menus.Listbox.currentlyFocussed model.menu of
-                        Just focus ->
-                            ( { model | options = select focus, menu = Menus.Listbox.closed }
-                            , Menus.Listbox.onClose menuConfig menuMsgConfig
-                            )
-
-                        Nothing ->
-                            ( model
-                            , Cmd.none
-                            )
+        --MenuInputted inputted ->
+        --    let
+        --        ( selected_, model_, cmd_ ) =
+        --            Menus.Listbox.inputted
+        --                { msg = inputted
+        --                , state = model.menu
+        --                , config = menuConfig
+        --                , msgConfig = menuMsgConfig
+        --                , options = Examples.MenuItem.list
+        --                , selected = model.selected
+        --                }
+        --    in
+        --    ( { model | menu = model_, selected = selected_ }
+        --    , cmd_
+        --    )
 
         NoOp ->
             ( model, Cmd.none )
@@ -155,7 +131,7 @@ view model =
                     , ( "text-blue-900", isSelected )
                     ]
                 }
-                [ Html.text (menuConfig.toLabel option) ]
+                [ Html.text (menuConfig.optionToLabel option) ]
 
     in
     Html.div
@@ -166,7 +142,7 @@ view model =
             { classes = "cursor-default w-full bg-transparent border-b border-gray-300 focus:border-saint-patrick-blue focus:outline-none flex items-baseline justify-between px-1.5 py-2", classList = [] }
             [ Html.span
                 [ Attr.class "text-sm leading-none" ]
-                [ Html.text (menuConfig.toLabel (ZipList.current model.options)) ]
+                [ Html.text (menuConfig.optionToLabel (ZipList.current model.options)) ]
             ]
         , Menus.Listbox.options model.menu
             menuConfig

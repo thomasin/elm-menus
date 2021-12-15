@@ -12,27 +12,25 @@ import Menus.Menu
 
 
 type alias Model =
-    { menu : Menus.Menu.State Int
-    , options : ZipList.ZipList Examples.MenuItem.MenuItem
+    { menu : Menus.Menu.State
     }
 
 
 type Msg
     = MenuOpened
     | MenuClosed
-    | MenuFocussed (Menus.Menu.Focussed Int)
+    | MenuFocussed Menus.Menu.Focussed
     | NoOp
 
 
-menuConfig : Menus.Menu.Config Examples.MenuItem.MenuItem Int
+menuConfig : Menus.Menu.Config (List Examples.MenuItem.MenuItem)
 menuConfig =
     { id = "basic-listbox"
-    , toLabel = .label
-    , valueToString = String.fromInt
+    , optionsLength = List.length
     }
 
 
-menuMsgConfig : Menus.Menu.MsgConfig Int Msg
+menuMsgConfig : Menus.Menu.MsgConfig Msg
 menuMsgConfig =
     { onOpened = MenuOpened
     , onClosed = MenuClosed
@@ -43,13 +41,7 @@ menuMsgConfig =
 
 init : ( Model, Cmd Msg )
 init =
-    (
-        { menu = Menus.Menu.closed
-        , options =
-            ZipList.new
-                (Tuple.first Examples.MenuItem.nonEmpty)
-                (Tuple.second Examples.MenuItem.nonEmpty)
-        }
+    ( { menu = Menus.Menu.closed }
     , Cmd.none
     )
 
@@ -59,49 +51,28 @@ update msg model =
     case msg of
         MenuOpened ->
             ( { model | menu = Menus.Menu.opened model.menu 0 }
-            , Menus.Menu.onOpen menuConfig menuMsgConfig
+            , Cmd.none
             )
 
         MenuClosed ->
             ( { model | menu = Menus.Menu.closed }
-            , Menus.Menu.onClose menuConfig menuMsgConfig
+            , Cmd.none
             )
 
         MenuFocussed focussed ->
-            case focussed of
-                Menus.Menu.FocussedSpecific idx ->
-                    ( { model | menu = Menus.Menu.focusOn model.menu (Just idx) }
-                    , Cmd.none
-                    )
-
-                Menus.Menu.FocussedPrevious ->
-                    case Menus.Menu.currentlyFocussed model.menu of
-                        Just prevIdx ->
-                            ( { model | menu = Menus.Menu.changeFocus model.menu (max (prevIdx - 1) 0) (ZipList.length model.options - 1) }
-                            , Cmd.none
-                            )
-
-                        Nothing ->
-                            ( model
-                            , Cmd.none
-                            )
-
-                Menus.Menu.FocussedNext ->
-                    case Menus.Menu.currentlyFocussed model.menu of
-                        Just prevIdx ->
-                            ( { model | menu = Menus.Menu.changeFocus model.menu (min (prevIdx + 1) (ZipList.length model.options - 1)) 0 }
-                            , Cmd.none
-                            )
-
-                        Nothing ->
-                            ( model
-                            , Cmd.none
-                            )
-
-                Menus.Menu.FocusLost ->
-                    ( { model | menu = Menus.Menu.focusOn model.menu Nothing }
-                    , Cmd.none
-                    )
+            let
+                ( model_, cmd_ ) =
+                    Menus.Menu.focussed
+                        { msg = focussed
+                        , state = model.menu
+                        , config = menuConfig
+                        , msgConfig = menuMsgConfig
+                        , options = Examples.MenuItem.list
+                        }
+            in
+            ( { model | menu = model_ }
+            , cmd_
+            )
 
         NoOp ->
             ( model, Cmd.none )
@@ -118,7 +89,7 @@ view model =
                     [ ( "bg-blue-100", Just idx == Menus.Menu.currentlyFocussed model.menu )
                     ]
                 }
-                [ Html.text (menuConfig.toLabel option) ]
+                [ Html.text option.label ]
 
     in
     Html.div
@@ -140,8 +111,7 @@ view model =
                 , ( "z-20 opacity-0 pointer-events-none", not (Menus.Menu.isOpen model.menu) )
                 ]
             }
-            (ZipList.toList model.options
-                |> List.indexedMap viewOption
+            ( List.indexedMap viewOption Examples.MenuItem.list
             )
         ]
 

@@ -1,4 +1,4 @@
-module Menus.Combobox exposing (Config, ListboxConfig, listbox, Focussed, Inputted(..), MsgConfig, Selected(..), State, closed, container, currentlyFocussed, focussed, init, input, inputted, isOpen, opened, option, options, selected, subscriptions, inputStr, control, lastMatch, setMatch, TokenGenerator(..), tokenised, Token, SearchResult(..))
+module Menus.Combobox exposing (Config, ListboxConfig, listbox, Focussed, Inputted, MsgConfig, Selected, State, closed, container, currentlyFocussed, focussed, init, input, inputted, isOpen, opened, option, options, selected, subscriptions, inputStr, control, lastMatch, setMatch, TokenGenerator(..), tokenised, Token, SearchResult(..))
 
 import Accessibility.Aria as Aria
 import Accessibility.Key as Key
@@ -15,6 +15,7 @@ import Task
 import Menus.Internal.Base
 import Menus.Internal.KeyEvent
 import Menus.Internal.Focus
+import Menus.Internal.Select
 
 
 lastMatch state =
@@ -54,18 +55,23 @@ setMatch state f =
 
 
 type alias Focussed value = Menus.Internal.Focus.Focussed value
+type alias Selected value = Menus.Internal.Select.Selected value
 
 
-type Selected value
-    = SelectChanged Menus.Internal.Base.Direction
-    | SelectedSpecific value
-    | SelectedFocussed
+type Inputted = InputChanged String
 
 
-type Inputted
-    = InputAddedTo String
-    | InputChanged String
-    | BackspacePressed
+type alias Config options option value selected =
+    { id : String
+    , optionToLabel : option -> String
+    , optionToValue : option -> value
+    , valueToString : value -> String
+    , selectionToOption : selected -> SearchResult option
+    , selectChange : Menus.Internal.Base.Direction -> selected -> options -> selected
+    , selectValue : value -> selected -> options -> selected
+    , focusChange : Menus.Internal.Base.Direction -> Maybe value -> options -> SearchResult option
+    , focusMatch : String -> options -> SearchResult option
+    }
 
 
 type alias OpenState value =
@@ -123,83 +129,62 @@ opened args =
             )
 
 
---focussed : { msg : Focussed value, state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, options : options } -> ( State value, Cmd msg )
---focussed args =
---    case args.msg of
---        FocussedSpecific value ->
---            ( focusOn args.state (Just value)
---            , onFocus (ids.option args.config.id (args.config.valueToString value)) args.msgConfig
---            )
-
---        FocussedChanged direction ->
---            case args.config.focusChange direction (currentlyFocussed args.state) args.options of
---                Found newFocus ->
---                    ( focusOn args.state (Just (args.config.optionToValue newFocus))
---                    , onFocus (ids.option args.config.id (args.config.valueToString (args.config.optionToValue (newFocus)))) args.msgConfig
---                    )
-
---                NotFound ->
---                    ( args.state
---                    , Cmd.none
---                    )
-
---        FocusLost ->
---            ( focusOn args.state Nothing
---            , onFocus "" args.msgConfig
---            )
 focussed : { msg : Menus.Internal.Focus.Focussed value, state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, options : options } -> ( State value, Cmd msg )
 focussed args =
-    Menus.Internal.Focus.focussed args.msg args.state args.msgConfig
-        { focusChange = \direction ->
-            case args.config.focusChange direction (currentlyFocussed args.state) args.options of
-                Found opt ->
-                    Just (args.config.optionToValue opt)
+    let
+        config : Menus.Internal.Focus.Config (State value) value
+        config =
+            { focusChange = \direction ->
+                case args.config.focusChange direction (currentlyFocussed args.state) args.options of
+                    Found opt ->
+                        Just (args.config.optionToValue opt)
 
-                NotFound ->
-                    Nothing
-        , updateFocus = \newFocus ->
-            case args.state of
-                Opened openState ->
-                    case newFocus of
-                        Menus.Internal.Focus.HasFocus value ->
-                            Opened { openState | lastMatch = Just value, focus = Menus.Internal.Focus.HasFocus value }
+                    NotFound ->
+                        Nothing
+            , updateFocus = \newFocus ->
+                case args.state of
+                    Opened openState ->
+                        case newFocus of
+                            Menus.Internal.Focus.HasFocus value ->
+                                Opened { openState | lastMatch = Just value, focus = Menus.Internal.Focus.HasFocus value }
 
-                        Menus.Internal.Focus.NoFocus ->
-                            Opened { openState | focus = Menus.Internal.Focus.NoFocus }
+                            Menus.Internal.Focus.NoFocus ->
+                                Opened { openState | focus = Menus.Internal.Focus.NoFocus }
 
-                Closed ->
-                    Closed
-        , valueToId = \value ->
-            ids.option args.config.id (args.config.valueToString value)
-        }
+                    Closed ->
+                        Closed
+            , valueToId = \value -> ids.option (args.config.valueToString value) args.config.id
+            , optionContainerId = args.config.id
+            }
+
+    in
+    Menus.Internal.Focus.focussed args.msg args.state args.msgConfig config
+        
 
 
 selected : { msg : Selected value, state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, options : options, selected : selected } -> ( selected, State value, Cmd msg )
 selected args =
-    case args.msg of
-        SelectedSpecific value ->
-            ( args.config.selectValue value args.selected args.options, Closed, onClose args.config args.msgConfig )
+    let
+        config : Menus.Internal.Select.Config selected value
+        config =
+            { selectChange = \direction -> args.config.selectChange direction args.selected args.options
+            , selectValue = \value -> args.config.selectValue value args.selected args.options
+            , currentlyFocussed = Menus.Internal.Focus.fromMaybe (currentlyFocussed args.state)
+            }
 
-        SelectChanged direction ->
-            ( args.config.selectChange direction args.selected args.options 
-            , Closed
-            , onClose args.config args.msgConfig
-            )
+    in
+    case Menus.Internal.Select.selected args.msg config of
+        Just selection ->
+            ( selection, Closed, onClose args.config args.msgConfig )
 
-        SelectedFocussed ->
-            case currentlyFocussed args.state of
-                Just focus ->
-                    ( args.config.selectValue focus args.selected args.options, Closed, onClose args.config args.msgConfig )
-
-                Nothing ->
-                    ( args.selected, args.state, Cmd.none )
+        Nothing ->
+            ( args.selected, args.state, Cmd.none )
 
 
 inputted : { msg : Inputted, state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, options : options, selected : selected } -> ( selected, State value, Cmd msg )
 inputted args =
-    let
-        focusOnNewInput : String -> ( selected, State value, Cmd msg )
-        focusOnNewInput str =
+    case args.msg of
+        InputChanged str ->
             case args.config.focusMatch str args.options of
                 Found match ->
                     ( args.config.selectValue (args.config.optionToValue match) args.selected args.options
@@ -208,7 +193,7 @@ inputted args =
                         , lastMatch = Just (args.config.optionToValue match)
                         , focus = Menus.Internal.Focus.HasFocus (args.config.optionToValue match)
                         }
-                    , Menus.Internal.Focus.attemptFocus (ids.input args.config.id) args.msgConfig
+                    , Cmd.none
                     )
 
                 NotFound ->
@@ -220,7 +205,7 @@ inputted args =
                                 , lastMatch = openState.lastMatch
                                 , focus = Menus.Internal.Focus.NoFocus
                                 }
-                            , Menus.Internal.Focus.attemptFocus (ids.input args.config.id) args.msgConfig
+                            , Cmd.none
                             )
 
                         Closed ->
@@ -230,24 +215,8 @@ inputted args =
                                 , lastMatch = Nothing
                                 , focus = Menus.Internal.Focus.NoFocus
                                 }
-                            , Menus.Internal.Focus.attemptFocus (ids.input args.config.id) args.msgConfig
+                            , Cmd.none
                             )
-            
-    in
-    case args.msg of
-        InputChanged str ->
-            focusOnNewInput str
-
-        InputAddedTo str ->
-            case args.state of
-                Opened openState ->
-                    focusOnNewInput (openState.input ++ str)
-
-                Closed ->
-                    ( args.selected, args.state, Cmd.none )
-
-        BackspacePressed ->
-            ( args.selected, args.state, Cmd.none )
 
 
 currentlyFocussed : State value -> Maybe value
@@ -270,19 +239,6 @@ searchResult maybeItem =
     case maybeItem of
         Just item -> Found item
         Nothing -> NotFound
-
-
-type alias Config options option value selected =
-    { id : String
-    , optionToLabel : option -> String
-    , optionToValue : option -> value
-    , valueToString : value -> String
-    , selectionToOption : selected -> SearchResult option
-    , selectChange : Menus.Internal.Base.Direction -> selected -> options -> selected
-    , selectValue : value -> selected -> options -> selected
-    , focusChange : Menus.Internal.Base.Direction -> Maybe value -> options -> SearchResult option
-    , focusMatch : String -> options -> SearchResult option
-    }
 
 
 type alias ListboxConfig option value =
@@ -416,12 +372,12 @@ ids =
 
 onOpen : Config options option value selected -> MsgConfig value msg -> Cmd msg
 onOpen config msgConfig =
-    Menus.Internal.Focus.attemptFocus (ids.input config.id) msgConfig
+    Cmd.none
 
 
 onClose : Config options option value selected -> MsgConfig value msg -> Cmd msg
 onClose config msgConfig =
-    Menus.Internal.Focus.attemptFocus (ids.input config.id) msgConfig
+    Cmd.none
 
 
 subscriptions : State value -> MsgConfig value msg -> Sub msg
@@ -492,6 +448,13 @@ input (WithToken token) contentsWhileClosed style =
 
 input_ : Token options option value selected msg -> Maybe String -> InputStyle -> Html msg
 input_ (Token token) contentsWhileClosed style =
+    let
+        activeDescendant =
+            Maybe.map token.config.valueToString (currentlyFocussed token.state)
+                |> Maybe.map (ids.option token.config.id)
+                |> Maybe.withDefault ""
+            
+    in
     case token.state of
         Opened openState ->
             Html.input
@@ -505,21 +468,15 @@ input_ (Token token) contentsWhileClosed style =
                 , Attr.class style.classes
                 , Attr.classList style.classList
                 , Widget.hasListBoxPopUp
+                , Aria.activeDescendant activeDescendant
                 , Widget.expanded True
                 , Events.onInput (token.msgConfig.onInput << InputChanged)
                 , Menus.Internal.KeyEvent.onKeyDown
-                    (if String.isEmpty openState.input then
-                        [ Menus.Internal.KeyEvent.backspace (token.msgConfig.onInput BackspacePressed)
-                        , Menus.Internal.KeyEvent.escape token.msgConfig.onClosed
-                        , Menus.Internal.KeyEvent.enter (token.msgConfig.onSelected SelectedFocussed)
-                        , Menus.Internal.Focus.keyEvents token.msgConfig
-                        ]
-                    else
-                        [ Menus.Internal.KeyEvent.escape token.msgConfig.onClosed
-                        , Menus.Internal.KeyEvent.enter (token.msgConfig.onSelected SelectedFocussed)
-                        , Menus.Internal.Focus.keyEvents token.msgConfig
-                        ]
-                    )
+                    [ Menus.Internal.KeyEvent.tabWith token.msgConfig.onClosed { stopPropagation = False, preventDefault = False }
+                    , Menus.Internal.KeyEvent.escape token.msgConfig.onClosed
+                    , Menus.Internal.KeyEvent.enter (token.msgConfig.onSelected Menus.Internal.Select.SelectedFocussed)
+                    , Menus.Internal.Focus.keyEvents token.msgConfig
+                    ]
                 ]
                 []
 
@@ -539,20 +496,11 @@ input_ (Token token) contentsWhileClosed style =
                 , Events.onInput (token.msgConfig.onInput << InputChanged)
                 , Events.onClick token.msgConfig.onOpened
                 , Menus.Internal.KeyEvent.onKeyDown
-                    (if String.isEmpty (Maybe.withDefault "" contentsWhileClosed) then
-                        [ Menus.Internal.KeyEvent.backspace (token.msgConfig.onInput BackspacePressed)
-                        , Menus.Internal.KeyEvent.left (token.msgConfig.onSelected (SelectChanged Menus.Internal.Base.Left))
-                        , Menus.Internal.KeyEvent.right (token.msgConfig.onSelected (SelectChanged Menus.Internal.Base.Right))
-                        , Menus.Internal.KeyEvent.down token.msgConfig.onOpened
-                        , Menus.Internal.KeyEvent.up token.msgConfig.onOpened
-                        ]
-                    else
-                        [ Menus.Internal.KeyEvent.left (token.msgConfig.onSelected (SelectChanged Menus.Internal.Base.Left))
-                        , Menus.Internal.KeyEvent.right (token.msgConfig.onSelected (SelectChanged Menus.Internal.Base.Right))
-                        , Menus.Internal.KeyEvent.down token.msgConfig.onOpened
-                        , Menus.Internal.KeyEvent.up token.msgConfig.onOpened
-                        ]
-                    )
+                    [ Menus.Internal.KeyEvent.left (token.msgConfig.onSelected (Menus.Internal.Select.SelectChanged Menus.Internal.Base.Left))
+                    , Menus.Internal.KeyEvent.right (token.msgConfig.onSelected (Menus.Internal.Select.SelectChanged Menus.Internal.Base.Right))
+                    , Menus.Internal.KeyEvent.down token.msgConfig.onOpened
+                    , Menus.Internal.KeyEvent.up token.msgConfig.onOpened
+                    ]
                 ]
                 []
 
@@ -622,32 +570,15 @@ options (Token token) style =
     let
         inputStr_ = inputStr token.state
 
-        activeDescendant =
-            case token.config.selectionToOption token.selected of
-                Found option_ ->
-                    token.config.optionToValue option_
-                        |> token.config.valueToString
-                        |> ids.option token.config.id
-
-                NotFound ->
-                    ""
     in
     Html.ul
         [ Attr.id token.config.id
         , Role.listBox
         , Aria.labelledBy (ids.label token.config.id)
-        , Aria.activeDescendant activeDescendant
         , Attr.class "z-10"
         , Attr.class style.classes
         , Attr.classList style.classList
-        , Key.tabbable (isOpen token.state)
-        , Menus.Internal.KeyEvent.onKeyDown
-            [ Menus.Internal.KeyEvent.escape token.msgConfig.onClosed
-            , Menus.Internal.KeyEvent.enter (token.msgConfig.onSelected SelectedFocussed)
-            , Menus.Internal.KeyEvent.charKey (token.msgConfig.onInput << InputAddedTo)
-            , Menus.Internal.KeyEvent.backspace (token.msgConfig.onInput (InputChanged (String.dropRight 1 inputStr_)))
-            , Menus.Internal.Focus.keyEvents token.msgConfig
-            ]
+        , Key.tabbable False
         , Menus.Internal.Focus.loseOnMouseLeave token.msgConfig
         ]
 
@@ -662,13 +593,13 @@ option : Token options option value selected msg -> value -> Bool -> OptionStyle
 option (Token token) value isSelected style =
     List.map (Html.map never)
         >> Html.li
-            [ Attr.id (ids.option token.config.id (token.config.valueToString value))
+            [ Attr.id (ids.option (token.config.valueToString value) token.config.id)
             , Role.option
             , Widget.selected isSelected
             , Attr.class style.classes
             , Attr.classList style.classList
             , Key.tabbable False
-            , Menus.Internal.Focus.focusOnMouseOver token.msgConfig value
-            , Events.onClick (token.msgConfig.onSelected (SelectedSpecific value))
+            , Menus.Internal.Focus.focusOnMouseMove token.msgConfig value
+            , Events.onClick (token.msgConfig.onSelected (Menus.Internal.Select.SelectedSpecific value))
             ]
 

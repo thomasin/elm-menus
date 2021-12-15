@@ -143,6 +143,9 @@ view model =
         isOpen =
             Menus.Combobox.isOpen model.menu
 
+        focussed =
+            Menus.Combobox.currentlyFocussed model.menu
+
         ( token, input ) = Menus.Combobox.tokenised Menus.Combobox.input
             model.menu
             menuConfig
@@ -153,9 +156,10 @@ view model =
             Menus.Combobox.option token
                 option
                 (Just option == model.selected)
-                { classes = "flex cursor-default last:rounded-b-md last:pb-3.5 focus:outline-none px-3.5 py-3 transition-colors focus:bg-blue-100"
+                { classes = "flex cursor-default last:rounded-b-md last:pb-3.5 focus:outline-none px-3.5 py-3 transition-colors"
                 , classList =
                     [ ( "text-blue-900 font-semibold", Just option == model.selected )
+                    , ( "bg-blue-100", Just option == focussed )
                     ]
                 }
                 [ Html.div
@@ -175,7 +179,7 @@ view model =
             [ input
                 (Maybe.map menuConfig.optionToLabel model.selected)
                 { placeholder = "Select"
-                , classes = "w-full h-full focus:outline-none pl-3.5 bg-transparent flex items-center text-sm text-saint-patrick-blue placeholder-silver-seand transition-colors"
+                , classes = "w-full h-full rounded focus:outline-none focus:ring focus:ring-blue-100 focus:ring-offset-gray-50 focus:ring-offset-2 pl-3.5 bg-transparent flex items-center text-sm text-saint-patrick-blue placeholder-silver-seand transition-colors"
                 , classList = []
                 }
             ]

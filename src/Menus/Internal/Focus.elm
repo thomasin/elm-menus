@@ -1,4 +1,4 @@
-module Menus.Internal.Focus exposing (Focussed(..), Focus(..), fromMaybe, toMaybe, attemptFocus, Config, focussed, keyEvents, loseOnMouseLeave, focusOnMouseOver)
+module Menus.Internal.Focus exposing (Focussed(..), Focus(..), fromMaybe, toMaybe, scrollIntoView, Config, focussed, keyEvents, loseOnMouseLeave, focusOnMouseMove)
 
 import Html exposing (Html)
 import Html.Events
@@ -41,16 +41,33 @@ toMaybe focus =
             Nothing
 
 
-attemptFocus : String -> { msgConfig | onNoOp : msg } -> Cmd msg
-attemptFocus id msgConfig =
-    Task.attempt (always msgConfig.onNoOp) (Browser.Dom.focus id)
+scrollIntoView : String -> String -> Maybe Menus.Internal.Base.Direction -> { msgConfig | onNoOp : msg } -> Cmd msg
+scrollIntoView optionId ulId maybeDirection msgConfig =
+    Browser.Dom.getElement optionId
+        |> Task.andThen (\opt ->
+            Browser.Dom.getViewportOf ulId
+                |> Task.andThen (\{ viewport } ->
+                    Browser.Dom.getElement ulId
+                        |> Task.andThen (\ul ->
+                            let elementY = opt.element.y - ul.element.y in
+                            if elementY > viewport.y && (elementY + opt.element.height) < (viewport.y + viewport.height) then
+                                -- The element is visible on screen, no need to scroll anything
+                                Task.succeed ()
 
+                            else
+                                -- We need to scroll the element into view
+                                Browser.Dom.setViewportOf ulId 0 elementY
+                        )
+                )
+        )
+        |> Task.attempt (\_ -> msgConfig.onNoOp)
 
 
 type alias Config state value =
     { focusChange : Menus.Internal.Base.Direction -> Maybe value
     , updateFocus : Focus value -> state
     , valueToId : value -> String
+    , optionContainerId : String
     }
 
 
@@ -59,14 +76,14 @@ focussed msg state msgConfig config =
     case msg of
         FocussedSpecific value ->
             ( config.updateFocus (HasFocus value)
-            , attemptFocus (config.valueToId value) msgConfig
+            , scrollIntoView (config.valueToId value) config.optionContainerId Nothing msgConfig
             )
 
         FocussedChanged direction ->
             case config.focusChange direction of
                 Just newFocus ->
                     ( config.updateFocus (HasFocus newFocus)
-                    , attemptFocus (config.valueToId newFocus) msgConfig
+                    , scrollIntoView (config.valueToId newFocus) config.optionContainerId (Just direction) msgConfig
                     )
 
                 Nothing ->
@@ -76,11 +93,11 @@ focussed msg state msgConfig config =
 
         FocusLost ->
             ( config.updateFocus NoFocus
-            , attemptFocus "" msgConfig
+            , Cmd.none
             )
 
 
-keyEvents : { msgConfig | onFocussed : Focussed value -> msg } -> Json.Decode.Decoder msg
+keyEvents : { msgConfig | onFocussed : Focussed value -> msg } -> Json.Decode.Decoder ( msg, Menus.Internal.KeyEvent.Opts )
 keyEvents msgConfig =
     Json.Decode.oneOf
         [ Menus.Internal.KeyEvent.up (msgConfig.onFocussed (FocussedChanged Menus.Internal.Base.Up))
@@ -95,24 +112,7 @@ loseOnMouseLeave msgConfig =
     Html.Events.onMouseLeave (msgConfig.onFocussed FocusLost)
 
 
-focusOnMouseOver : { msgConfig | onFocussed : Focussed value -> msg } -> value -> Html.Attribute msg
-focusOnMouseOver msgConfig value =
-    Html.Events.onMouseOver (msgConfig.onFocussed (FocussedSpecific value))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+focusOnMouseMove : { msgConfig | onFocussed : Focussed value -> msg } -> value -> Html.Attribute msg
+focusOnMouseMove msgConfig value =
+    Html.Events.on "mousemove" (Json.Decode.succeed (msgConfig.onFocussed (FocussedSpecific value)))
 
