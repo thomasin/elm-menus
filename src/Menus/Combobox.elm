@@ -1,44 +1,21 @@
-module Menus.Combobox exposing (Config, ListboxConfig, listbox, Focussed, Inputted, MsgConfig, Selected, State, closed, container, currentlyFocussed, focussed, init, input, inputted, isOpen, opened, option, options, selected, subscriptions, inputStr, control, lastMatch, setMatch, TokenGenerator(..), tokenised, Token, SearchResult(..))
+module Menus.Combobox exposing (Config, Focussed, Inputted, ListboxConfig, MsgConfig, SearchResult(..), Selected, State, Token, closed, focussed, init, input, inputted, isOpen, listbox, menuToken, opened, option, options, selected)
 
 import Accessibility.Aria as Aria
 import Accessibility.Key as Key
 import Accessibility.Role as Role
 import Accessibility.Widget as Widget
 import Browser.Dom
-import Browser.Events
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode
 import List.Extra as List
-import Task
 import Menus.Internal.Base
-import Menus.Internal.KeyEvent
 import Menus.Internal.Focus
+import Menus.Internal.KeyEvent
 import Menus.Internal.Select
+import Task
 
-
-lastMatch state =
-    case state of
-        Opened openState ->
-            openState.lastMatch
-
-        Closed ->
-            Nothing
-
-
-setMatch : State value -> (Maybe value -> value) -> State value
-setMatch state f =
-    case state of
-        Opened openState ->
-            Opened
-                { openState
-                | lastMatch = Just (f openState.lastMatch)
-                , focus = Menus.Internal.Focus.HasFocus (f openState.lastMatch)
-                }
-
-        Closed ->
-            Closed
 
 
 {- A custom <select>, with support for keyboard navigation
@@ -54,11 +31,16 @@ setMatch state f =
 -}
 
 
-type alias Focussed value = Menus.Internal.Focus.Focussed value
-type alias Selected value = Menus.Internal.Select.Selected value
+type alias Focussed value =
+    Menus.Internal.Focus.Focussed value
 
 
-type Inputted = InputChanged String
+type alias Selected value =
+    Menus.Internal.Select.Selected value
+
+
+type Inputted
+    = InputChanged String
 
 
 type alias Config options option value selected =
@@ -86,20 +68,27 @@ type State value
     | Closed
 
 
+init : State value
 init =
     Closed
 
 
+focusOnControl : Config options option value selected -> MsgConfig value msg -> Cmd msg
+focusOnControl config msgConfig =
+    Browser.Dom.focus (ids.control config.id)
+        |> Task.attempt (always msgConfig.onNoOp)
+
+
 closed : { config : Config options option value selected, msgConfig : MsgConfig value msg } -> ( State value, Cmd msg )
 closed args =
-    ( Closed, onClose args.config args.msgConfig )
+    ( Closed, focusOnControl args.config args.msgConfig )
 
 
 opened : { state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, selected : selected } -> ( State value, Cmd msg )
 opened args =
     case args.state of
         Opened openState ->
-            ( Opened openState, onOpen args.config args.msgConfig )
+            ( Opened openState, Cmd.none )
 
         Closed ->
             ( Opened
@@ -125,7 +114,7 @@ opened args =
                         NotFound ->
                             Menus.Internal.Focus.NoFocus
                 }
-            , onOpen args.config args.msgConfig
+            , focusOnControl args.config args.msgConfig
             )
 
 
@@ -134,32 +123,32 @@ focussed args =
     let
         config : Menus.Internal.Focus.Config (State value) value
         config =
-            { focusChange = \direction ->
-                case args.config.focusChange direction (currentlyFocussed args.state) args.options of
-                    Found opt ->
-                        Just (args.config.optionToValue opt)
+            { focusChange =
+                \direction ->
+                    case args.config.focusChange direction (currentlyFocussed args.state) args.options of
+                        Found opt ->
+                            Just (args.config.optionToValue opt)
 
-                    NotFound ->
-                        Nothing
-            , updateFocus = \newFocus ->
-                case args.state of
-                    Opened openState ->
-                        case newFocus of
-                            Menus.Internal.Focus.HasFocus value ->
-                                Opened { openState | lastMatch = Just value, focus = Menus.Internal.Focus.HasFocus value }
+                        NotFound ->
+                            Nothing
+            , updateFocus =
+                \newFocus ->
+                    case args.state of
+                        Opened openState ->
+                            case newFocus of
+                                Menus.Internal.Focus.HasFocus value ->
+                                    Opened { openState | lastMatch = Just value, focus = Menus.Internal.Focus.HasFocus value }
 
-                            Menus.Internal.Focus.NoFocus ->
-                                Opened { openState | focus = Menus.Internal.Focus.NoFocus }
+                                Menus.Internal.Focus.NoFocus ->
+                                    Opened { openState | focus = Menus.Internal.Focus.NoFocus }
 
-                    Closed ->
-                        Closed
+                        Closed ->
+                            Closed
             , valueToId = \value -> ids.option (args.config.valueToString value) args.config.id
             , optionContainerId = args.config.id
             }
-
     in
     Menus.Internal.Focus.focussed args.msg args.state args.msgConfig config
-        
 
 
 selected : { msg : Selected value, state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, options : options, selected : selected } -> ( selected, State value, Cmd msg )
@@ -171,11 +160,10 @@ selected args =
             , selectValue = \value -> args.config.selectValue value args.selected args.options
             , currentlyFocussed = Menus.Internal.Focus.fromMaybe (currentlyFocussed args.state)
             }
-
     in
     case Menus.Internal.Select.selected args.msg config of
         Just selection ->
-            ( selection, Closed, onClose args.config args.msgConfig )
+            ( selection, Closed, focusOnControl args.config args.msgConfig )
 
         Nothing ->
             ( args.selected, args.state, Cmd.none )
@@ -237,8 +225,11 @@ type SearchResult item
 searchResult : Maybe item -> SearchResult item
 searchResult maybeItem =
     case maybeItem of
-        Just item -> Found item
-        Nothing -> NotFound
+        Just item ->
+            Found item
+
+        Nothing ->
+            NotFound
 
 
 type alias ListboxConfig option value =
@@ -247,6 +238,7 @@ type alias ListboxConfig option value =
     , optionToValue : option -> value
     , valueToString : value -> String
     }
+
 
 
 --visibleOptions str opts =
@@ -260,87 +252,89 @@ listbox config =
     , optionToValue = config.optionToValue
     , valueToString = config.valueToString
     , selectionToOption = searchResult
-    , selectChange = \direction maybeSelected opts ->
-        case direction of
-            Menus.Internal.Base.Left ->
-                case maybeSelected of
-                    Just selected_ ->
-                        case List.splitWhen ((==) selected_) opts of
-                            Just ( previous, _ ) ->
-                                List.last previous
+    , selectChange =
+        \direction maybeSelected opts ->
+            case direction of
+                Menus.Internal.Base.Left ->
+                    case maybeSelected of
+                        Just selected_ ->
+                            case List.splitWhen ((==) selected_) opts of
+                                Just ( previous, _ ) ->
+                                    List.last previous
 
-                            Nothing ->
-                                List.last opts
+                                Nothing ->
+                                    List.last opts
 
-                    Nothing ->
-                        List.last opts
+                        Nothing ->
+                            List.last opts
 
-            Menus.Internal.Base.Right ->
-                case maybeSelected of
-                    Just selected_ ->
-                        case List.splitWhen ((==) selected_) opts of
-                            Just ( _, _ :: os ) ->
-                                List.head os
+                Menus.Internal.Base.Right ->
+                    case maybeSelected of
+                        Just selected_ ->
+                            case List.splitWhen ((==) selected_) opts of
+                                Just ( _, _ :: os ) ->
+                                    List.head os
 
-                            Just ( _, [] ) ->
-                                Nothing
+                                Just ( _, [] ) ->
+                                    Nothing
 
-                            Nothing ->
-                                List.head opts
+                                Nothing ->
+                                    List.head opts
 
-                    Nothing ->
-                        List.head opts
+                        Nothing ->
+                            List.head opts
 
-            Menus.Internal.Base.Up ->
-                Nothing
+                Menus.Internal.Base.Up ->
+                    Nothing
 
-            Menus.Internal.Base.Down ->
-                Nothing
-    , selectValue = \value _ opts ->
-        List.filter ((==) value << config.optionToValue) opts
-            |> List.head
-    , focusChange = \direction value opts ->
-        case direction of
-            Menus.Internal.Base.Up ->
-                case value of
-                    Just currentFocus ->
-                        case List.splitWhen ((==) currentFocus << config.optionToValue) opts of
-                            Just ( previous, _ ) ->
-                                searchResult (List.last previous)
+                Menus.Internal.Base.Down ->
+                    Nothing
+    , selectValue =
+        \value _ opts ->
+            List.filter ((==) value << config.optionToValue) opts
+                |> List.head
+    , focusChange =
+        \direction value opts ->
+            case direction of
+                Menus.Internal.Base.Up ->
+                    case value of
+                        Just currentFocus ->
+                            case List.splitWhen ((==) currentFocus << config.optionToValue) opts of
+                                Just ( previous, _ ) ->
+                                    searchResult (List.last previous)
 
-                            Nothing ->
-                                searchResult (List.last opts)
+                                Nothing ->
+                                    searchResult (List.last opts)
 
-                    Nothing ->
-                        searchResult (List.last opts)
+                        Nothing ->
+                            searchResult (List.last opts)
 
+                Menus.Internal.Base.Down ->
+                    case value of
+                        Just currentFocus ->
+                            case List.splitWhen ((==) currentFocus << config.optionToValue) opts of
+                                Just ( _, _ :: os ) ->
+                                    searchResult (List.head os)
 
-            Menus.Internal.Base.Down ->
-                case value of
-                    Just currentFocus ->
-                        case List.splitWhen ((==) currentFocus << config.optionToValue) opts of
-                            Just ( _, _ :: os ) ->
-                                searchResult (List.head os)
+                                Just ( _, [] ) ->
+                                    searchResult Nothing
 
-                            Just ( _, [] ) ->
-                                searchResult (Nothing)
+                                Nothing ->
+                                    searchResult (List.head opts)
 
-                            Nothing ->
-                                searchResult (List.head opts)
+                        Nothing ->
+                            searchResult (List.head opts)
 
-                    Nothing ->
-                        searchResult (List.head opts)
+                Menus.Internal.Base.Left ->
+                    NotFound
 
-
-            Menus.Internal.Base.Left ->
-                NotFound
-
-            Menus.Internal.Base.Right ->
-                NotFound
-    , focusMatch = \str opts ->
-        List.filter (String.startsWith str << config.optionToLabel) opts
-            |> List.head
-            |> searchResult
+                Menus.Internal.Base.Right ->
+                    NotFound
+    , focusMatch =
+        \str opts ->
+            List.filter (String.startsWith str << config.optionToLabel) opts
+                |> List.head
+                |> searchResult
     }
 
 
@@ -354,40 +348,12 @@ type alias MsgConfig value msg =
     }
 
 
+ids : { control : String -> String, options : String -> String, option : String -> String -> String }
 ids =
-    { option = \id str -> id ++ "-option-" ++ str
-    , control = \id -> id ++ "-control"
-    , label = \id -> id ++ "-label"
-    , input = \id -> id ++ "-input"
+    { control = \id -> id ++ "-control"
+    , options = \id -> id ++ "-options"
+    , option = \id str -> id ++ "-option-" ++ str
     }
-
-
-
-{- Focus on given ID.
-   This focus is not necessarily a deal breaker for the user, so
-   we don't want any actions to be blocked by it - we do nothing no matter
-   whether it succeeds or not.
--}
-
-
-onOpen : Config options option value selected -> MsgConfig value msg -> Cmd msg
-onOpen config msgConfig =
-    Cmd.none
-
-
-onClose : Config options option value selected -> MsgConfig value msg -> Cmd msg
-onClose config msgConfig =
-    Cmd.none
-
-
-subscriptions : State value -> MsgConfig value msg -> Sub msg
-subscriptions state msgConfig =
-    case state of
-        Opened _ ->
-            Browser.Events.onMouseDown (Json.Decode.succeed msgConfig.onClosed)
-
-        Closed ->
-            Sub.none
 
 
 isOpen : State value -> Bool
@@ -404,202 +370,123 @@ isOpen state =
 -- Views --
 
 
-type TokenGenerator options option value selected msg
-    = WithToken (Token options option value selected msg)
-
-
-type Token options option value selected msg = Token
+type alias Token options option value selected msg =
     { state : State value
     , config : Config options option value selected
     , msgConfig : MsgConfig value msg
     , selected : selected
+    , focussed : Maybe value
     }
 
 
-tokenised : ( TokenGenerator options option value selected msg -> element ) -> State value -> Config options option value selected -> MsgConfig value msg -> selected -> ( Token options option value selected msg, element )
-tokenised element state config msgConfig selected_ =
-    let token = Token { state = state, config = config, msgConfig = msgConfig, selected = selected_ } in
-    ( token
-    , element (WithToken token)
-    )
+menuToken : { state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, selected : selected } -> Token options option value selected msg
+menuToken args =
+    { state = args.state
+    , config = args.config
+    , msgConfig = args.msgConfig
+    , selected = args.selected
+    , focussed =
+        case args.state of
+            Opened openState ->
+                Menus.Internal.Focus.toMaybe openState.focus
 
-
-type alias InputStyle =
-    { placeholder : String
-    , classes : String
-    , classList : List ( String, Bool )
+            Closed ->
+                Nothing
     }
 
 
-inputStr : State value -> String
-inputStr state =
-    case state of
-        Opened openState ->
-            openState.input
-
-        Closed ->
-            ""
-
-
-input : TokenGenerator options option value selected msg -> Maybe String -> InputStyle -> Html msg
-input (WithToken token) contentsWhileClosed style =
-    input_ token contentsWhileClosed style
-
-
-input_ : Token options option value selected msg -> Maybe String -> InputStyle -> Html msg
-input_ (Token token) contentsWhileClosed style =
-    let
-        activeDescendant =
-            Maybe.map token.config.valueToString (currentlyFocussed token.state)
-                |> Maybe.map (ids.option token.config.id)
-                |> Maybe.withDefault ""
-            
-    in
-    case token.state of
-        Opened openState ->
-            Html.input
-                [ Attr.id (ids.input token.config.id)
-                , Aria.controls token.config.id
-                , Attr.type_ "text"
-                , Attr.autocomplete False
-                , Attr.spellcheck False
-                , Attr.placeholder style.placeholder
-                , Attr.value openState.input
-                , Attr.class style.classes
-                , Attr.classList style.classList
-                , Widget.hasListBoxPopUp
-                , Aria.activeDescendant activeDescendant
-                , Widget.expanded True
-                , Events.onInput (token.msgConfig.onInput << InputChanged)
-                , Menus.Internal.KeyEvent.onKeyDown
-                    [ Menus.Internal.KeyEvent.tabWith token.msgConfig.onClosed { stopPropagation = False, preventDefault = False }
-                    , Menus.Internal.KeyEvent.escape token.msgConfig.onClosed
-                    , Menus.Internal.KeyEvent.enter (token.msgConfig.onSelected Menus.Internal.Select.SelectedFocussed)
-                    , Menus.Internal.Focus.keyEvents token.msgConfig
-                    ]
-                ]
-                []
-
-        Closed ->
-            Html.input
-                [ Attr.id (ids.input token.config.id)
-                , Aria.controls token.config.id
-                , Attr.type_ "text"
-                , Attr.autocomplete False
-                , Attr.spellcheck False
-                , Attr.placeholder style.placeholder
-                , Attr.value (Maybe.withDefault "" contentsWhileClosed)
-                , Attr.class style.classes
-                , Attr.classList style.classList
-                , Widget.hasListBoxPopUp
-                , Widget.expanded False
-                , Events.onInput (token.msgConfig.onInput << InputChanged)
-                , Events.onClick token.msgConfig.onOpened
-                , Menus.Internal.KeyEvent.onKeyDown
-                    [ Menus.Internal.KeyEvent.left (token.msgConfig.onSelected (Menus.Internal.Select.SelectChanged Menus.Internal.Base.Left))
-                    , Menus.Internal.KeyEvent.right (token.msgConfig.onSelected (Menus.Internal.Select.SelectChanged Menus.Internal.Base.Right))
-                    , Menus.Internal.KeyEvent.down token.msgConfig.onOpened
-                    , Menus.Internal.KeyEvent.up token.msgConfig.onOpened
-                    ]
-                ]
-                []
-
-
-type alias ControlStyle =
-    { classes : String
-    , classList : List ( String, Bool )
-    , placeholder : String
-    }
-
-
-control : TokenGenerator options option value selected msg -> Maybe String -> ControlStyle -> (List (Html msg) -> Html msg)
-control (WithToken token) contentsWhileClosed style =
-    control_ token contentsWhileClosed style
-
-
-control_ : Token options option value selected msg -> Maybe String -> ControlStyle -> (List (Html msg) -> Html msg)
-control_ (Token token) contentsWhileClosed style =
+input : Token options option value selected msg -> { placeholder : String } -> List (Html.Attribute msg) -> Html msg
+input token args attributes =
     case token.state of
         Opened openState ->
             let
-                dataValue = if String.isEmpty openState.input then style.placeholder else openState.input
+                activeDescendant : String
+                activeDescendant =
+                    Maybe.map token.config.valueToString token.focussed
+                        |> Maybe.map (ids.option token.config.id)
+                        |> Maybe.withDefault ""
             in
-            Html.div
-                [ Attr.id (ids.control token.config.id)
-                , Attr.attribute "data-value" dataValue
-                , Aria.controls token.config.id
-                , Attr.class style.classes
-                ]
+            Html.input
+                (List.append attributes
+                    [ Attr.id (ids.control token.config.id)
+                    , Aria.controls token.config.id
+                    , Attr.type_ "text"
+                    , Attr.autocomplete False
+                    , Attr.spellcheck False
+                    , Attr.placeholder args.placeholder
+                    , Attr.value openState.input
+                    , Widget.hasListBoxPopUp
+                    , Aria.activeDescendant activeDescendant
+                    , Widget.expanded True
+                    , Events.onBlur token.msgConfig.onClosed
+                    , Events.onInput (token.msgConfig.onInput << InputChanged)
+                    , Menus.Internal.KeyEvent.onKeyDown
+                        [ Menus.Internal.KeyEvent.escape token.msgConfig.onClosed
+                        , Menus.Internal.KeyEvent.enter (token.msgConfig.onSelected Menus.Internal.Select.SelectedFocussed)
+                        , Menus.Internal.Focus.keyEvents token.msgConfig
+                        ]
+                    ]
+                )
+                []
 
         Closed ->
             let
-                dataValue = if String.isEmpty (Maybe.withDefault "" contentsWhileClosed) then style.placeholder else (Maybe.withDefault "" contentsWhileClosed)
+                value : String
+                value =
+                    case token.config.selectionToOption token.selected of
+                        Found opt ->
+                            token.config.optionToLabel opt
+
+                        NotFound ->
+                            ""
             in
-            Html.div
-                [ Attr.id (ids.control token.config.id)
-                , Aria.controls token.config.id
-                , Attr.attribute "data-value" dataValue
-                , Events.onClick token.msgConfig.onOpened
-                , Attr.class style.classes
-                ]
+            Html.input
+                (List.append attributes
+                    [ Attr.id (ids.control token.config.id)
+                    , Aria.controls token.config.id
+                    , Attr.type_ "text"
+                    , Attr.autocomplete False
+                    , Attr.spellcheck False
+                    , Attr.placeholder args.placeholder
+                    , Attr.value value
+                    , Widget.hasListBoxPopUp
+                    , Widget.expanded False
+                    , Events.onInput (token.msgConfig.onInput << InputChanged)
+                    , Events.onClick token.msgConfig.onOpened
+                    , Menus.Internal.KeyEvent.onKeyDown
+                        [ Menus.Internal.KeyEvent.left (token.msgConfig.onSelected (Menus.Internal.Select.SelectChanged Menus.Internal.Base.Left))
+                        , Menus.Internal.KeyEvent.right (token.msgConfig.onSelected (Menus.Internal.Select.SelectChanged Menus.Internal.Base.Right))
+                        , Menus.Internal.KeyEvent.down token.msgConfig.onOpened
+                        , Menus.Internal.KeyEvent.up token.msgConfig.onOpened
+                        ]
+                    ]
+                )
+                []
 
 
-
-
-type alias ContainerStyle =
-    { classes : String
-    }
-
-
-container : MsgConfig value msg -> ContainerStyle -> (List (Html msg) -> Html msg)
-container msgConfig style =
-    Html.div
-        [ Events.stopPropagationOn "mousedown" (Json.Decode.succeed ( msgConfig.onNoOp, True ))
-        , Attr.class style.classes
-        ]
-
-
-type alias OptionsStyle =
-    { classes : String
-    , classList : List ( String, Bool )
-    }
-
-
-options : Token options option value selected msg -> OptionsStyle -> (List (Html msg) -> Html msg)
-options (Token token) style =
-    let
-        inputStr_ = inputStr token.state
-
-    in
+options : Token options option value selected msg -> List (Html.Attribute msg) -> (List (Html msg) -> Html msg)
+options token attributes =
     Html.ul
-        [ Attr.id token.config.id
-        , Role.listBox
-        , Aria.labelledBy (ids.label token.config.id)
-        , Attr.class "z-10"
-        , Attr.class style.classes
-        , Attr.classList style.classList
-        , Key.tabbable False
-        , Menus.Internal.Focus.loseOnMouseLeave token.msgConfig
-        ]
+        (List.append attributes
+            [ Attr.id (ids.options token.config.id)
+            , Role.listBox
+            , Key.tabbable False
+            , Menus.Internal.Focus.loseOnMouseLeave token.msgConfig
+            ]
+        )
 
 
-type alias OptionStyle =
-    { classes : String
-    , classList : List ( String, Bool )
-    }
-
-
-option : Token options option value selected msg -> value -> Bool -> OptionStyle -> (List (Html Never) -> Html msg)
-option (Token token) value isSelected style =
+option : Token options option value selected msg -> { value : value, isSelected : Bool } -> List (Html.Attribute msg) -> (List (Html Never) -> Html msg)
+option token args attributes =
     List.map (Html.map never)
         >> Html.li
-            [ Attr.id (ids.option (token.config.valueToString value) token.config.id)
-            , Role.option
-            , Widget.selected isSelected
-            , Attr.class style.classes
-            , Attr.classList style.classList
-            , Key.tabbable False
-            , Menus.Internal.Focus.focusOnMouseMove token.msgConfig value
-            , Events.onClick (token.msgConfig.onSelected (Menus.Internal.Select.SelectedSpecific value))
-            ]
-
+            (List.append attributes
+                [ Attr.id (ids.option (token.config.valueToString args.value) token.config.id)
+                , Role.option
+                , Widget.selected args.isSelected
+                , Key.tabbable False
+                , Menus.Internal.Focus.focusOnMouseMove token.msgConfig token.focussed args.value
+                , Events.preventDefaultOn "mousedown" (Json.Decode.succeed ( token.msgConfig.onNoOp, True ))
+                , Events.onClick (token.msgConfig.onSelected (Menus.Internal.Select.SelectedSpecific args.value))
+                ]
+            )

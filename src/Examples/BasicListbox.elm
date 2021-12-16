@@ -1,11 +1,12 @@
-module Examples.BasicListbox exposing (Model, Msg, init, update, view, subscriptions)
-
-import Html
-import Html.Attributes as Attr
-import ZipList
+module Examples.BasicListbox exposing (Model, Msg, init, update, view)
 
 import Examples.MenuItem
+import Examples.Svg
+import Html
+import Html.Attributes as Attr
 import Menus.Listbox
+import ZipList
+
 
 
 --
@@ -22,6 +23,7 @@ type Msg
     | MenuClosed
     | MenuFocussed (Menus.Listbox.Focussed Int)
     | MenuSelected (Menus.Listbox.Selected Int)
+    | MenuInputted Menus.Listbox.Inputted
     | NoOp
 
 
@@ -39,17 +41,16 @@ menuMsgConfig =
     , onClosed = MenuClosed
     , onFocussed = MenuFocussed
     , onSelected = MenuSelected
-    , onInputted = always NoOp
+    , onInputted = MenuInputted
     , onNoOp = NoOp
     }
 
 
 init : ( Model, Cmd Msg )
 init =
-    (
-        { menu = Menus.Listbox.closed
-        , options = ZipList.new (Tuple.first Examples.MenuItem.nonEmpty) (Tuple.second Examples.MenuItem.nonEmpty)
-        }
+    ( { menu = Menus.Listbox.closed
+      , options = ZipList.new (Tuple.first Examples.MenuItem.nonEmpty) (Tuple.second Examples.MenuItem.nonEmpty)
+      }
     , Cmd.none
     )
 
@@ -98,68 +99,84 @@ update msg model =
             , cmd_
             )
 
-        --MenuInputted inputted ->
-        --    let
-        --        ( selected_, model_, cmd_ ) =
-        --            Menus.Listbox.inputted
-        --                { msg = inputted
-        --                , state = model.menu
-        --                , config = menuConfig
-        --                , msgConfig = menuMsgConfig
-        --                , options = Examples.MenuItem.list
-        --                , selected = model.selected
-        --                }
-        --    in
-        --    ( { model | menu = model_, selected = selected_ }
-        --    , cmd_
-        --    )
+        MenuInputted inputted ->
+            let
+                ( model_, cmd_ ) =
+                    Menus.Listbox.inputted
+                        { msg = inputted
+                        , state = model.menu
+                        , config = menuConfig
+                        , msgConfig = menuMsgConfig
+                        , options = model.options
+                        }
+            in
+            ( { model | menu = model_ }
+            , cmd_
+            )
 
         NoOp ->
             ( model, Cmd.none )
 
 
+view : Model -> Html.Html Msg
 view model =
     let
-        viewOption : Int -> Bool -> Examples.MenuItem.MenuItem -> Html.Html Msg
-        viewOption idx isSelected option =
-            Menus.Listbox.option menuConfig menuMsgConfig
-                idx
-                isSelected
-                { classes = "cursor-default first:rounded-t-md last:rounded-b-md px-3 py-2 first:pt-3.5 last:pb-3.5 transition-colors"
-                , classList =
-                    [ ( "bg-blue-100", Just idx == Menus.Listbox.currentlyFocussed model.menu )
-                    , ( "text-blue-900", isSelected )
-                    ]
+        token : Menus.Listbox.Token (ZipList.ZipList Examples.MenuItem.MenuItem) Examples.MenuItem.MenuItem Int (ZipList.ZipList Examples.MenuItem.MenuItem) Msg
+        token =
+            Menus.Listbox.menuToken
+                { state = model.menu
+                , config = menuConfig
+                , msgConfig = menuMsgConfig
+                , selected = model.options
                 }
-                [ Html.text (menuConfig.optionToLabel option) ]
-
     in
     Html.div
-        [ Attr.class "box-content relative w-72 text-left select-none" ]
-        [ Menus.Listbox.button model.menu
-            menuConfig
-            menuMsgConfig
-            { classes = "cursor-default w-full bg-transparent border-b border-gray-300 focus:border-saint-patrick-blue focus:outline-none flex items-baseline justify-between px-1.5 py-2", classList = [] }
-            [ Html.span
-                [ Attr.class "text-sm leading-none" ]
-                [ Html.text (menuConfig.optionToLabel (ZipList.current model.options)) ]
+        [ Attr.class "relative w-72 h-11 flex flex-wrap justify-between relative h-11 flex items-center border border-stone-300 bg-white rounded shadow-sm ring-0 focus-within:ring ring-purple-100 ring-offset-stone-50 ring-offset-1"
+        ]
+        [ Menus.Listbox.button token
+            [ Attr.class "w-full h-full rounded bg-transparent flex items-center px-3.5 text-sm" ]
+            [ Html.text (menuConfig.optionToLabel (ZipList.current model.options))
             ]
-        , Menus.Listbox.options model.menu
-            menuConfig
-            menuMsgConfig
-            (Just (ZipList.currentIndex model.options))
-            { classes = "absolute top-0 left-0 min-w-full shadow-md rounded-md outline-none focus:outline-none bg-white text-sm text-gray-900 transition-all"
-            , classList =
+        , Html.button
+            [ Attr.class "absolute cursor-pointer right-2 w-5 text-purple-900 hover:text-stone-900"
+            ]
+            [ if Menus.Listbox.isOpen model.menu then
+                Examples.Svg.upArrow
+
+              else
+                Examples.Svg.downArrow
+            ]
+        , Menus.Listbox.options token
+            [ Attr.class "absolute top-full left-0 min-w-full mt-2 shadow-md rounded border border-stone-300 p-1 space-y-1 bg-white text-sm text-stone-900 transition"
+            , Attr.classList
                 [ ( "z-50 opacity-100 pointer-events-all", Menus.Listbox.isOpen model.menu )
                 , ( "z-20 opacity-0 pointer-events-none", not (Menus.Listbox.isOpen model.menu) )
                 ]
-            }
-            (ZipList.indexedSelectedMap (viewOption) model.options
-                |> ZipList.toList
+            ]
+            (ZipList.toList
+                (ZipList.indexedSelectedMap
+                    (\idx isSelected option ->
+                        Menus.Listbox.option token
+                            { value = idx, isSelected = isSelected }
+                            [ Attr.class "cursor-default rounded flex pl-2 pr-3 py-2 transition-colors"
+                            , Attr.classList
+                                [ ( "bg-purple-100", Just idx == token.focussed )
+                                , ( "bg-transparent", not (Just idx == token.focussed) )
+                                ]
+                            ]
+                            [ Html.div
+                                [ Attr.class "w-5 flex justify-center mr-2 text-purple-900"
+                                ]
+                                [ if isSelected then
+                                    Examples.Svg.check
+
+                                  else
+                                    Html.text ""
+                                ]
+                            , Html.text (menuConfig.optionToLabel option)
+                            ]
+                    )
+                    model.options
+                )
             )
         ]
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Menus.Listbox.subscriptions model.menu menuMsgConfig

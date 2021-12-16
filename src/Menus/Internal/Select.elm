@@ -1,13 +1,6 @@
-module Menus.Internal.Select exposing (Selected(..), Config, selected)
-
-import Html exposing (Html)
-import Html.Events
-import Browser.Dom
-import Task
-import Json.Decode
+module Menus.Internal.Select exposing (Config, Selected(..), selected)
 
 import Menus.Internal.Base
-import Menus.Internal.KeyEvent
 import Menus.Internal.Focus
 
 
@@ -42,6 +35,7 @@ selected msg config =
                     Nothing
 
 
+
 --keyEvents : { msgConfig | onFocussed : Focussed value -> msg } -> Json.Decode.Decoder msg
 --keyEvents msgConfig =
 --    Json.Decode.oneOf
@@ -50,31 +44,9 @@ selected msg config =
 --        , Menus.Internal.KeyEvent.left (msgConfig.onFocussed (FocussedChanged Menus.Internal.Base.Left))
 --        , Menus.Internal.KeyEvent.right (msgConfig.onFocussed (FocussedChanged Menus.Internal.Base.Right))
 --        ]
-
-
 --loseOnMouseLeave : { msgConfig | onFocussed : Focussed value -> msg } -> Html.Attribute msg
 --loseOnMouseLeave msgConfig =
 --    Html.Events.onMouseLeave (msgConfig.onFocussed FocusLost)
-
-
 --focusOnMouseOver : { msgConfig | onFocussed : Focussed value -> msg } -> value -> Html.Attribute msg
 --focusOnMouseOver msgConfig value =
 --    Html.Events.onMouseOver (msgConfig.onFocussed (FocussedSpecific value))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

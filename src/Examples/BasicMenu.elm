@@ -1,11 +1,12 @@
-module Examples.BasicMenu exposing (Model, Msg, init, update, view, subscriptions)
-
-import Html
-import Html.Attributes as Attr
-import ZipList
+module Examples.BasicMenu exposing (Model, Msg, init, update, view)
 
 import Examples.MenuItem
+import Examples.Svg
+import Html
+import Html.Attributes as Attr
+import Html.Events
 import Menus.Menu
+
 
 
 --
@@ -78,44 +79,54 @@ update msg model =
             ( model, Cmd.none )
 
 
+view : Model -> Html.Html Msg
 view model =
     let
-        viewOption : Int -> Examples.MenuItem.MenuItem -> Html.Html Msg
-        viewOption idx option =
-            Menus.Menu.li menuConfig menuMsgConfig
-                idx
-                { classes = "cursor-default first:rounded-t-md last:rounded-b-md border-b border-gray-100 last:border-0 px-3 py-2 first:pt-3.5 last:pb-3.5 transition-colors"
-                , classList =
-                    [ ( "bg-blue-100", Just idx == Menus.Menu.currentlyFocussed model.menu )
-                    ]
+        token : Menus.Menu.Token (List Examples.MenuItem.MenuItem) Msg
+        token =
+            Menus.Menu.menuToken
+                { state = model.menu
+                , config = menuConfig
+                , msgConfig = menuMsgConfig
                 }
-                [ Html.text option.label ]
-
     in
     Html.div
-        [ Attr.class "box-content relative w-72 text-left select-none" ]
-        [ Menus.Menu.button model.menu
-            menuConfig
-            menuMsgConfig
-            { classes = "cursor-default w-full bg-transparent rounded border border-gray-200 bg-gray-100 focus:border-blue-100 focus:outline-none flex items-baseline justify-between px-2 py-3", classList = [] }
-            [ Html.span
-                [ Attr.class "text-sm leading-none" ]
-                [ Html.text "Basic menu" ]
+        [ Attr.class "relative w-72 h-11 flex flex-wrap justify-between relative h-11 flex items-center border border-stone-300 bg-transparent rounded shadow-sm ring-0 focus-within:ring ring-purple-100 ring-offset-stone-50 ring-offset-1"
+        ]
+        [ Menus.Menu.button token
+            [ Attr.class "cursor-default h-full w-full flex items-center leading-none justify-between px-3.5 text-sm text-stone-900"
             ]
-        , Menus.Menu.ul model.menu
-            menuConfig
-            menuMsgConfig
-            { classes = "absolute top-full left-0 min-w-full shadow-md rounded-md outline-none focus:outline-none bg-white text-sm text-gray-900 transition-all"
-            , classList =
-                [ ( "z-50 opacity-100 pointer-events-all", Menus.Menu.isOpen model.menu )
-                , ( "z-20 opacity-0 pointer-events-none", not (Menus.Menu.isOpen model.menu) )
+            [ Html.text "Examples"
+            ]
+        , Html.button
+            [ Attr.class "absolute cursor-pointer right-2 w-5 text-purple-800 hover:text-purple-900"
+            ]
+            [ if token.isOpen then
+                Examples.Svg.upArrow
+
+              else
+                Examples.Svg.downArrow
+            ]
+        , Menus.Menu.options token
+            [ Attr.class "absolute top-full left-0 min-w-full mt-2 shadow-md rounded border border-stone-300 p-1 space-y-1 bg-white text-sm text-stone-900 transition"
+            , Attr.classList
+                [ ( "z-50 opacity-100 pointer-events-all", token.isOpen )
+                , ( "z-0 opacity-0 pointer-events-none", not token.isOpen )
                 ]
-            }
-            ( List.indexedMap viewOption Examples.MenuItem.list
+            ]
+            (List.indexedMap
+                (\idx option ->
+                    Menus.Menu.option token
+                        { idx = idx }
+                        [ Attr.class "cursor-pointer rounded px-3 py-2 transition-colors"
+                        , Attr.classList
+                            [ ( "bg-purple-100", Just idx == token.focussed )
+                            , ( "bg-transparent", not (Just idx == token.focussed) )
+                            ]
+                        , Html.Events.onClick menuMsgConfig.onClosed
+                        ]
+                        [ Html.text option.label ]
+                )
+                Examples.MenuItem.list
             )
         ]
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Menus.Menu.subscriptions model.menu menuMsgConfig

@@ -1,4 +1,4 @@
-module Menus.Internal.KeyEvent exposing (Opts, backspace, charKey, down, enter, escape, left, onKeyDown, right, up, tabWith)
+module Menus.Internal.KeyEvent exposing (Opts, backspace, charKey, down, enter, escape, left, onKeyDown, right, up)
 
 import Html
 import Html.Events as Events
@@ -33,11 +33,6 @@ enter msg =
     succeedForKey "Enter" msg strictOpts
 
 
-tabWith : msg -> Opts -> Json.Decode.Decoder ( msg, Opts )
-tabWith msg opts =
-    succeedForKey "Tab" msg opts
-
-
 escape : msg -> Json.Decode.Decoder ( msg, Opts )
 escape msg =
     succeedForKey "Escape" msg strictOpts
@@ -68,19 +63,20 @@ right msg =
     succeedForKey "ArrowRight" msg strictOpts
 
 
-charKey : (String -> msg) -> Json.Decode.Decoder ( msg, Opts )
+charKey : (Char -> msg) -> Json.Decode.Decoder ( msg, Opts )
 charKey msg =
     Json.Decode.field "key" Json.Decode.string
         |> Json.Decode.andThen
             (\pressedKey ->
-                if pressedKey == " " then
-                    Json.Decode.fail "We ignore space presses - they're used to press buttons"
+                case String.uncons pressedKey of
+                    Just ( ' ', "" ) ->
+                        Json.Decode.fail "We ignore space presses - they're used to press buttons"
 
-                else if String.length pressedKey == 1 then
-                    Json.Decode.succeed ( msg pressedKey, strictOpts )
+                    Just ( pressedChar, "" ) ->
+                        Json.Decode.succeed ( msg pressedChar, strictOpts )
 
-                else
-                    Json.Decode.fail "Not a char key"
+                    _ ->
+                        Json.Decode.fail "Not a char key"
             )
 
 

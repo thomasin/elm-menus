@@ -1,10 +1,11 @@
-module Examples.BasicCombobox exposing (Model, Msg, init, update, view, subscriptions)
-
-import Html
-import Html.Attributes as Attr
+module Examples.BasicCombobox exposing (Model, Msg, init, update, view)
 
 import Examples.MenuItem
+import Examples.Svg
+import Html
+import Html.Attributes as Attr
 import Menus.Combobox
+
 
 
 --
@@ -49,11 +50,10 @@ menuMsgConfig =
 
 init : ( Model, Cmd Msg )
 init =
-    (
-        { menu = Menus.Combobox.init
-        , selected = Nothing
-        , options = Examples.MenuItem.list
-        }
+    ( { menu = Menus.Combobox.init
+      , selected = Nothing
+      , options = Examples.MenuItem.list
+      }
     , Cmd.none
     )
 
@@ -138,68 +138,71 @@ update msg model =
             ( model, Cmd.none )
 
 
+view : Model -> Html.Html Msg
 view model =
     let
-        isOpen =
-            Menus.Combobox.isOpen model.menu
-
-        focussed =
-            Menus.Combobox.currentlyFocussed model.menu
-
-        ( token, input ) = Menus.Combobox.tokenised Menus.Combobox.input
-            model.menu
-            menuConfig
-            menuMsgConfig
-            model.selected
-
-        viewOption option =
-            Menus.Combobox.option token
-                option
-                (Just option == model.selected)
-                { classes = "flex cursor-default last:rounded-b-md last:pb-3.5 focus:outline-none px-3.5 py-3 transition-colors"
-                , classList =
-                    [ ( "text-blue-900 font-semibold", Just option == model.selected )
-                    , ( "bg-blue-100", Just option == focussed )
-                    ]
+        token : Menus.Combobox.Token (List Examples.MenuItem.MenuItem) Examples.MenuItem.MenuItem Examples.MenuItem.MenuItem (Maybe Examples.MenuItem.MenuItem) Msg
+        token =
+            Menus.Combobox.menuToken
+                { state = model.menu
+                , config = menuConfig
+                , msgConfig = menuMsgConfig
+                , selected = model.selected
                 }
-                [ Html.div
-                    [ Attr.class "mr-2" ]
-                    [ Html.text (if Just option == model.selected then "✅" else option.emoji) ]
-                , Html.text option.label
-                ]
     in
-    Menus.Combobox.container menuMsgConfig
-        { classes = "relative w-72 flex flex-wrap justify-between" }
-        [ Html.div
-            [ Attr.class "relative w-full h-11 flex items-center border border-gray-300 bg-white rounded shadow-sm"
-            , Attr.classList
-                [ ( "rounded-b-none border-b-transparent", isOpen )
-                ]
+    Html.div
+        [ Attr.class "relative w-72 h-11 flex flex-wrap justify-between relative h-11 items-center border border-stone-300 bg-white rounded shadow-sm ring-0 focus-within:ring ring-purple-100 ring-offset-stone-50 ring-offset-1"
+        ]
+        [ Menus.Combobox.input token
+            { placeholder = "Select" }
+            [ Attr.class "w-full h-full rounded bg-transparent flex items-center px-3.5 text-sm placeholder-stone-400" ]
+        , Html.button
+            [ Attr.class "absolute right-2 w-5 text-purple-900"
+
+            --, Html.Events.onClick (if Menus.Combobox.isOpen model.menu then menuMsgConfig.onClosed else menuMsgConfig.onOpened)
             ]
-            [ input
-                (Maybe.map menuConfig.optionToLabel model.selected)
-                { placeholder = "Select"
-                , classes = "w-full h-full rounded focus:outline-none focus:ring focus:ring-blue-100 focus:ring-offset-gray-50 focus:ring-offset-2 pl-3.5 bg-transparent flex items-center text-sm text-saint-patrick-blue placeholder-silver-seand transition-colors"
-                , classList = []
-                }
+            [ if Menus.Combobox.isOpen model.menu then
+                Examples.Svg.upArrow
+
+              else
+                Examples.Svg.downArrow
             ]
         , Menus.Combobox.options token
-            { classes = "absolute top-full left-0 min-w-full max-h-48 overflow-y-scroll border border-gray-300 shadow-sm rounded-b-md outline-none focus:outline-none bg-white text-sm text-gray-900 leading-none"
-            , classList =
-                [ ( "opacity-100 pointer-events-all", isOpen )
-                , ( "opacity-0 pointer-events-none", not isOpen )
+            [ Attr.class "absolute top-full left-0 min-w-full max-h-48 overflow-y-scroll mt-2 shadow-md rounded border border-stone-300 p-1 pt-0 bg-white text-sm text-stone-900 transition"
+            , Attr.classList
+                [ ( "z-50 opacity-100 pointer-events-all", Menus.Combobox.isOpen model.menu )
+                , ( "z-0 opacity-0 pointer-events-none", not (Menus.Combobox.isOpen model.menu) )
                 ]
-            }
-            (case isOpen of
-                True ->
-                    List.map viewOption model.options
+            ]
+            (if Menus.Combobox.isOpen model.menu then
+                List.map
+                    (\option ->
+                        Menus.Combobox.option token
+                            { value = option, isSelected = Just option == model.selected }
+                            [ Attr.class "pt-1" ]
+                            [ Html.div
+                                [ Attr.class "flex cursor-default rounded px-3.5 py-3 transition-colors"
+                                , Attr.classList
+                                    [ ( "bg-purple-100", Just option == token.focussed )
+                                    , ( "bg-transparent", not (Just option == token.focussed) )
+                                    ]
+                                ]
+                                [ Html.div
+                                    [ Attr.class "w-5 flex justify-center mr-2 text-purple-900"
+                                    ]
+                                    [ if Just option == model.selected then
+                                        Examples.Svg.check
 
-                False ->
-                    []
+                                      else
+                                        Html.text option.emoji
+                                    ]
+                                , Html.text option.label
+                                ]
+                            ]
+                    )
+                    model.options
+
+             else
+                []
             )
         ]
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Menus.Combobox.subscriptions model.menu menuMsgConfig

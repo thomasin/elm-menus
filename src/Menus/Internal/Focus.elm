@@ -1,13 +1,13 @@
-module Menus.Internal.Focus exposing (Focussed(..), Focus(..), fromMaybe, toMaybe, scrollIntoView, Config, focussed, keyEvents, loseOnMouseLeave, focusOnMouseMove)
+module Menus.Internal.Focus exposing (Config, Focus(..), Focussed(..), focusOnMouseMove, focussed, fromMaybe, keyEvents, loseOnMouseLeave, toMaybe)
 
-import Html exposing (Html)
-import Html.Events
 import Browser.Dom
-import Task
+import Html
+import Html.Attributes
+import Html.Events
 import Json.Decode
-
 import Menus.Internal.Base
 import Menus.Internal.KeyEvent
+import Task
 
 
 type Focussed value
@@ -41,25 +41,37 @@ toMaybe focus =
             Nothing
 
 
-scrollIntoView : String -> String -> Maybe Menus.Internal.Base.Direction -> { msgConfig | onNoOp : msg } -> Cmd msg
-scrollIntoView optionId ulId maybeDirection msgConfig =
+scrollIntoView : String -> String -> { msgConfig | onNoOp : msg } -> Cmd msg
+scrollIntoView optionId ulId msgConfig =
     Browser.Dom.getElement optionId
-        |> Task.andThen (\opt ->
-            Browser.Dom.getViewportOf ulId
-                |> Task.andThen (\{ viewport } ->
-                    Browser.Dom.getElement ulId
-                        |> Task.andThen (\ul ->
-                            let elementY = opt.element.y - ul.element.y in
-                            if elementY > viewport.y && (elementY + opt.element.height) < (viewport.y + viewport.height) then
-                                -- The element is visible on screen, no need to scroll anything
-                                Task.succeed ()
+        |> Task.andThen
+            (\opt ->
+                Browser.Dom.getViewportOf ulId
+                    |> Task.andThen
+                        (\{ viewport } ->
+                            Browser.Dom.getElement ulId
+                                |> Task.andThen
+                                    (\ul ->
+                                        let
+                                            -- The distance of the option element top from the ul viewport
+                                            elementY : Float
+                                            elementY =
+                                                opt.element.y - ul.element.y
+                                        in
+                                        if elementY > 0 && (elementY + opt.element.height) < viewport.height then
+                                            -- The element is visible on screen, no need to scroll anything
+                                            Task.succeed ()
 
-                            else
-                                -- We need to scroll the element into view
-                                Browser.Dom.setViewportOf ulId 0 elementY
+                                        else if elementY > 0 then
+                                            -- The element is below the visible viewport, move it to the bottom
+                                            Browser.Dom.setViewportOf ulId 0 ((viewport.y + elementY) - (viewport.height - opt.element.height))
+
+                                        else
+                                            -- The element is above the visible viewport, move it to the top
+                                            Browser.Dom.setViewportOf ulId 0 (viewport.y + elementY)
+                                    )
                         )
-                )
-        )
+            )
         |> Task.attempt (\_ -> msgConfig.onNoOp)
 
 
@@ -76,14 +88,14 @@ focussed msg state msgConfig config =
     case msg of
         FocussedSpecific value ->
             ( config.updateFocus (HasFocus value)
-            , scrollIntoView (config.valueToId value) config.optionContainerId Nothing msgConfig
+            , scrollIntoView (config.valueToId value) config.optionContainerId msgConfig
             )
 
         FocussedChanged direction ->
             case config.focusChange direction of
                 Just newFocus ->
                     ( config.updateFocus (HasFocus newFocus)
-                    , scrollIntoView (config.valueToId newFocus) config.optionContainerId (Just direction) msgConfig
+                    , scrollIntoView (config.valueToId newFocus) config.optionContainerId msgConfig
                     )
 
                 Nothing ->
@@ -112,7 +124,11 @@ loseOnMouseLeave msgConfig =
     Html.Events.onMouseLeave (msgConfig.onFocussed FocusLost)
 
 
-focusOnMouseMove : { msgConfig | onFocussed : Focussed value -> msg } -> value -> Html.Attribute msg
-focusOnMouseMove msgConfig value =
-    Html.Events.on "mousemove" (Json.Decode.succeed (msgConfig.onFocussed (FocussedSpecific value)))
+focusOnMouseMove : { msgConfig | onFocussed : Focussed value -> msg } -> Maybe value -> value -> Html.Attribute msg
+focusOnMouseMove msgConfig currentFocus value =
+    if currentFocus == Just value then
+        -- We don't need to trigger any more mouse move events
+        Html.Attributes.class ""
 
+    else
+        Html.Events.on "mousemove" (Json.Decode.succeed (msgConfig.onFocussed (FocussedSpecific value)))
