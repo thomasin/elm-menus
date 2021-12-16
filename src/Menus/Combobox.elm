@@ -1,4 +1,4 @@
-module Menus.Combobox exposing (Config, Focussed, Inputted, ListboxConfig, MsgConfig, SearchResult(..), Selected, State, Token, closed, focussed, init, input, inputted, isOpen, listbox, menuToken, opened, option, options, selected)
+module Menus.Combobox exposing (Config, Focussed, Inputted, ListboxConfig, MsgConfig, SearchResult(..), Selected, State, Token, closed, focusMatch, focussed, init, input, inputted, isOpen, listbox, menuToken, opened, option, options, selected)
 
 import Accessibility.Aria as Aria
 import Accessibility.Key as Key
@@ -15,20 +15,6 @@ import Menus.Internal.Focus
 import Menus.Internal.KeyEvent
 import Menus.Internal.Select
 import Task
-
-
-
-{- A custom <select>, with support for keyboard navigation
-   This is an attempt to reimplement the native <select> element with custom
-   styling. This a basic first step, with no support for scrolling, search,
-   custom styling, disabled options, lots of things.
-
-   See https://www.w3.org/TR/wai-aria-1.1/#listbox for information on the role
-   and https://www.w3.org/TR/wai-aria-practices-1.1/#Listbox for information on
-   managing keyboard navigation.
-   For development, https://developer.mozilla.org/en-US/docs/Web/HTML/Element/select
-   is a good page to use as a reference.
--}
 
 
 type alias Focussed value =
@@ -52,7 +38,7 @@ type alias Config options option value selected =
     , selectChange : Menus.Internal.Base.Direction -> selected -> options -> selected
     , selectValue : value -> selected -> options -> selected
     , focusChange : Menus.Internal.Base.Direction -> Maybe value -> options -> SearchResult option
-    , focusMatch : String -> options -> SearchResult option
+    , focusMatch : String -> options -> List option
     }
 
 
@@ -118,6 +104,16 @@ opened args =
             )
 
 
+focusMatch : { state : State value, config : Config options option value selected, options : options } -> List option
+focusMatch args =
+    case args.state of
+        Opened openState ->
+            args.config.focusMatch openState.input args.options
+
+        Closed ->
+            []
+
+
 focussed : { msg : Menus.Internal.Focus.Focussed value, state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, options : options } -> ( State value, Cmd msg )
 focussed args =
     let
@@ -145,7 +141,7 @@ focussed args =
                         Closed ->
                             Closed
             , valueToId = \value -> ids.option (args.config.valueToString value) args.config.id
-            , optionContainerId = args.config.id
+            , optionContainerId = ids.options args.config.id
             }
     in
     Menus.Internal.Focus.focussed args.msg args.state args.msgConfig config
@@ -174,7 +170,7 @@ inputted args =
     case args.msg of
         InputChanged str ->
             case args.config.focusMatch str args.options of
-                Found match ->
+                match :: _ ->
                     ( args.config.selectValue (args.config.optionToValue match) args.selected args.options
                     , Opened
                         { input = String.trimLeft str
@@ -184,7 +180,7 @@ inputted args =
                     , Cmd.none
                     )
 
-                NotFound ->
+                [] ->
                     case args.state of
                         Opened openState ->
                             ( args.selected
@@ -238,11 +234,6 @@ type alias ListboxConfig option value =
     , optionToValue : option -> value
     , valueToString : value -> String
     }
-
-
-
---visibleOptions str opts =
---    List.filter (String.contains str << config.optionToLabel) opts
 
 
 listbox : ListboxConfig option value -> Config (List option) option value (Maybe option)
@@ -332,9 +323,7 @@ listbox config =
                     NotFound
     , focusMatch =
         \str opts ->
-            List.filter (String.startsWith str << config.optionToLabel) opts
-                |> List.head
-                |> searchResult
+            List.filter (String.startsWith (String.toLower str) << String.toLower << config.optionToLabel) opts
     }
 
 
@@ -409,7 +398,7 @@ input token args attributes =
             Html.input
                 (List.append attributes
                     [ Attr.id (ids.control token.config.id)
-                    , Aria.controls token.config.id
+                    , Aria.controls (ids.options token.config.id)
                     , Attr.type_ "text"
                     , Attr.autocomplete False
                     , Attr.spellcheck False
@@ -443,7 +432,7 @@ input token args attributes =
             Html.input
                 (List.append attributes
                     [ Attr.id (ids.control token.config.id)
-                    , Aria.controls token.config.id
+                    , Aria.controls (ids.options token.config.id)
                     , Attr.type_ "text"
                     , Attr.autocomplete False
                     , Attr.spellcheck False

@@ -4,6 +4,7 @@ import Examples.MenuItem
 import Examples.Svg
 import Html
 import Html.Attributes as Attr
+import Html.Events
 import Menus.Combobox
 
 
@@ -15,6 +16,7 @@ type alias Model =
     { menu : Menus.Combobox.State Examples.MenuItem.MenuItem
     , selected : Maybe Examples.MenuItem.MenuItem
     , options : List Examples.MenuItem.MenuItem
+    , justOpened : Bool
     }
 
 
@@ -53,9 +55,23 @@ init =
     ( { menu = Menus.Combobox.init
       , selected = Nothing
       , options = Examples.MenuItem.list
+      , justOpened = True
       }
     , Cmd.none
     )
+
+
+visibleOptions : Model -> List Examples.MenuItem.MenuItem
+visibleOptions model =
+    if model.justOpened then
+        model.options
+
+    else
+        Menus.Combobox.focusMatch
+            { state = model.menu
+            , config = menuConfig
+            , options = model.options
+            }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -71,7 +87,7 @@ update msg model =
                         , selected = model.selected
                         }
             in
-            ( { model | menu = model_ }
+            ( { model | menu = model_, justOpened = True }
             , cmd_
             )
 
@@ -95,7 +111,7 @@ update msg model =
                         , state = model.menu
                         , config = menuConfig
                         , msgConfig = menuMsgConfig
-                        , options = Examples.MenuItem.list
+                        , options = visibleOptions model
                         }
             in
             ( { model | menu = model_ }
@@ -110,7 +126,7 @@ update msg model =
                         , state = model.menu
                         , config = menuConfig
                         , msgConfig = menuMsgConfig
-                        , options = Examples.MenuItem.list
+                        , options = visibleOptions model
                         , selected = model.selected
                         }
             in
@@ -126,11 +142,11 @@ update msg model =
                         , state = model.menu
                         , config = menuConfig
                         , msgConfig = menuMsgConfig
-                        , options = Examples.MenuItem.list
+                        , options = visibleOptions model
                         , selected = model.selected
                         }
             in
-            ( { model | menu = model_, selected = selected_ }
+            ( { model | menu = model_, selected = selected_, justOpened = False }
             , cmd_
             )
 
@@ -157,18 +173,23 @@ view model =
             { placeholder = "Select" }
             [ Attr.class "w-full h-full rounded bg-transparent flex items-center px-3.5 text-sm placeholder-stone-400" ]
         , Html.button
-            [ Attr.class "absolute right-2 w-5 text-purple-900"
+            [ Attr.class "absolute right-2 w-5 flex flex-col text-purple-900"
+            , Html.Events.onMouseDown
+                (if Menus.Combobox.isOpen model.menu then
+                    menuMsgConfig.onClosed
 
-            --, Html.Events.onClick (if Menus.Combobox.isOpen model.menu then menuMsgConfig.onClosed else menuMsgConfig.onOpened)
+                 else
+                    menuMsgConfig.onOpened
+                )
             ]
             [ if Menus.Combobox.isOpen model.menu then
-                Examples.Svg.upArrow
+                Examples.Svg.chevronUp
 
               else
-                Examples.Svg.downArrow
+                Examples.Svg.chevronDown
             ]
         , Menus.Combobox.options token
-            [ Attr.class "absolute top-full left-0 min-w-full max-h-48 overflow-y-scroll mt-2 shadow-md rounded border border-stone-300 p-1 pt-0 bg-white text-sm text-stone-900 transition"
+            [ Attr.class "absolute top-full left-0 min-w-full max-h-48 overflow-y-scroll mt-2 shadow-md rounded border border-stone-300 p-1 pt-0 bg-white text-sm text-stone-900"
             , Attr.classList
                 [ ( "z-50 opacity-100 pointer-events-all", Menus.Combobox.isOpen model.menu )
                 , ( "z-0 opacity-0 pointer-events-none", not (Menus.Combobox.isOpen model.menu) )
@@ -200,7 +221,7 @@ view model =
                                 ]
                             ]
                     )
-                    model.options
+                    (visibleOptions model)
 
              else
                 []

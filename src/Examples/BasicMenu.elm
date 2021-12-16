@@ -102,10 +102,10 @@ view model =
             [ Attr.class "absolute cursor-pointer right-2 w-5 text-purple-800 hover:text-purple-900"
             ]
             [ if token.isOpen then
-                Examples.Svg.upArrow
+                Examples.Svg.chevronUp
 
               else
-                Examples.Svg.downArrow
+                Examples.Svg.chevronDown
             ]
         , Menus.Menu.options token
             [ Attr.class "absolute top-full left-0 min-w-full mt-2 shadow-md rounded border border-stone-300 p-1 space-y-1 bg-white text-sm text-stone-900 transition"

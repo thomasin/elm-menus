@@ -50,7 +50,7 @@ type alias Config options option value selected =
     , selectChange : Menus.Internal.Base.Direction -> selected -> options -> selected
     , selectValue : value -> selected -> options -> selected
     , focusChange : Menus.Internal.Base.Direction -> Maybe value -> options -> Maybe value
-    , focusMatch : String -> options -> Maybe value
+    , focusMatch : String -> options -> List option
     }
 
 
@@ -128,8 +128,7 @@ ziplist config =
                     Nothing
     , focusMatch =
         \str opts ->
-            ZipList.toList opts
-                |> findIndex (String.startsWith str << config.optionToLabel)
+            List.filter (String.startsWith (String.toLower str) << String.toLower << config.optionToLabel) (ZipList.toList opts)
     }
 
 
@@ -177,7 +176,7 @@ focussed args =
         , valueToId =
             \value ->
                 ids.option args.config.id (args.config.valueToString value)
-        , optionContainerId = args.config.id
+        , optionContainerId = ids.options args.config.id
         }
 
 
@@ -211,10 +210,10 @@ inputted args =
                             search ++ String.fromChar char
                     in
                     case args.config.focusMatch newSearch args.options of
-                        Just newFocus ->
-                            ( Opened newSearch (Menus.Internal.Focus.HasFocus newFocus), Cmd.none )
+                        match :: _ ->
+                            ( Opened newSearch (Menus.Internal.Focus.HasFocus (args.config.optionToValue match args.options)), Cmd.none )
 
-                        Nothing ->
+                        [] ->
                             ( Opened newSearch focus, Cmd.none )
 
                 Closed ->
@@ -308,7 +307,7 @@ button token attributes =
                     , Attr.type_ "button"
                     , Widget.hasListBoxPopUp
                     , Widget.expanded True
-                    , Aria.controls token.config.id
+                    , Aria.controls (ids.options token.config.id)
                     , Aria.activeDescendant activeDescendant
                     , Events.onBlur token.msgConfig.onClosed
                     , Events.onClick token.msgConfig.onClosed

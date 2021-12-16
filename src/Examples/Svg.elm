@@ -1,31 +1,31 @@
-module Examples.Svg exposing (check, downArrow, upArrow)
+module Examples.Svg exposing (check, chevronDown, chevronUp)
 
 import Html
 import Svg
 import Svg.Attributes
 
 
-downArrow : Html.Html msg
-downArrow =
+chevronDown : Html.Html msg
+chevronDown =
     Svg.svg
-        [ Svg.Attributes.viewBox "-5 -4.5 24 24"
+        [ Svg.Attributes.viewBox "-5 -8 24 24"
         , Svg.Attributes.fill "currentColor"
         ]
         [ Svg.path
-            [ Svg.Attributes.d "M8 11.243l3.95-3.95a1 1 0 1 1 1.414 1.414l-5.657 5.657a.997.997 0 0 1-1.414 0L.636 8.707A1 1 0 1 1 2.05 7.293L6 11.243V1.657a1 1 0 1 1 2 0v9.586z"
+            [ Svg.Attributes.d "M7.071 5.314l4.95-4.95a1 1 0 1 1 1.414 1.414L7.778 7.435a1 1 0 0 1-1.414 0L.707 1.778A1 1 0 1 1 2.121.364l4.95 4.95z"
             ]
             []
         ]
 
 
-upArrow : Html.Html msg
-upArrow =
+chevronUp : Html.Html msg
+chevronUp =
     Svg.svg
-        [ Svg.Attributes.viewBox "-5 -4.5 24 24"
+        [ Svg.Attributes.viewBox "-5 -7.5 24 24"
         , Svg.Attributes.fill "currentColor"
         ]
         [ Svg.path
-            [ Svg.Attributes.d "M6 4.071l-3.95 3.95A1 1 0 0 1 .636 6.607L6.293.95a.997.997 0 0 1 1.414 0l5.657 5.657A1 1 0 0 1 11.95 8.02L8 4.07v9.586a1 1 0 1 1-2 0V4.07z"
+            [ Svg.Attributes.d "M7.071 2.828l-4.95 4.95A1 1 0 0 1 .707 6.364L6.364.707a1 1 0 0 1 1.414 0l5.657 5.657a1 1 0 0 1-1.414 1.414l-4.95-4.95z"
             ]
             []
         ]

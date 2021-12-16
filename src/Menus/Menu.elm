@@ -68,7 +68,7 @@ focussed args =
         , valueToId =
             \idx ->
                 ids.option args.config.id (String.fromInt idx)
-        , optionContainerId = args.config.id
+        , optionContainerId = ids.options args.config.id
         }
 
 
@@ -162,7 +162,7 @@ button token attributes =
                     , Attr.type_ "button"
                     , Widget.hasMenuPopUp
                     , Widget.expanded True
-                    , Aria.controls token.config.id
+                    , Aria.controls (ids.options token.config.id)
                     , Events.onBlur token.msgConfig.onClosed
                     , Events.onClick token.msgConfig.onClosed
                     , Menus.Internal.KeyEvent.onKeyDown

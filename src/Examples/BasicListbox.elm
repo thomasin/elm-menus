@@ -138,13 +138,13 @@ view model =
             [ Html.text (menuConfig.optionToLabel (ZipList.current model.options))
             ]
         , Html.button
-            [ Attr.class "absolute cursor-pointer right-2 w-5 text-purple-900 hover:text-stone-900"
+            [ Attr.class "absolute cursor-pointer right-2 w-5 pointer-events-none"
             ]
             [ if Menus.Listbox.isOpen model.menu then
-                Examples.Svg.upArrow
+                Examples.Svg.chevronUp
 
               else
-                Examples.Svg.downArrow
+                Examples.Svg.chevronDown
             ]
         , Menus.Listbox.options token
             [ Attr.class "absolute top-full left-0 min-w-full mt-2 shadow-md rounded border border-stone-300 p-1 space-y-1 bg-white text-sm text-stone-900 transition"
