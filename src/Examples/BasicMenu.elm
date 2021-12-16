@@ -99,7 +99,7 @@ view model =
             [ Html.text "Examples"
             ]
         , Html.button
-            [ Attr.class "absolute cursor-pointer right-2 w-5 text-purple-800 hover:text-purple-900"
+            [ Attr.class "absolute cursor-pointer right-2 w-5 text-purple-900 pointer-events-none"
             ]
             [ if token.isOpen then
                 Examples.Svg.chevronUp
