@@ -48,7 +48,7 @@ menuMsgConfig =
 
 init : ( Model, Cmd Msg )
 init =
-    ( { menu = Menus.Listbox.closed
+    ( { menu = Menus.Listbox.init
       , options = ZipList.new (Tuple.first Examples.MenuItem.nonEmpty) (Tuple.second Examples.MenuItem.nonEmpty)
       }
     , Cmd.none
@@ -59,13 +59,29 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         MenuOpened ->
-            ( { model | menu = Menus.Listbox.opened model.menu 0 }
-            , Cmd.none
+            let
+                ( model_, cmd_ ) =
+                    Menus.Listbox.opened
+                        { state = model.menu
+                        , config = menuConfig
+                        , msgConfig = menuMsgConfig
+                        }
+                        0
+            in
+            ( { model | menu = model_ }
+            , cmd_
             )
 
         MenuClosed ->
-            ( { model | menu = Menus.Listbox.closed }
-            , Cmd.none
+            let
+                ( model_, cmd_ ) =
+                    Menus.Listbox.closed
+                        { config = menuConfig
+                        , msgConfig = menuMsgConfig
+                        }
+            in
+            ( { model | menu = model_ }
+            , cmd_
             )
 
         MenuFocussed focussed ->

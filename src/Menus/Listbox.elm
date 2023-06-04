@@ -1,17 +1,34 @@
-module Menus.Listbox exposing (Config, Focussed, Inputted, MsgConfig, Options, Selected, State, Token, button, closed, focussed, inputted, isOpen, menuToken, opened, option, options, selected, ziplist)
+module Menus.Listbox exposing (Config, Focussed, Inputted, MsgConfig, Options, Selected, State, Token, button, closed, focussed, init, inputted, isOpen, menuToken, opened, option, options, selected, ziplist)
+
+{-| This library fills a bunch of important niches in Elm. A `Maybe` can help
+you with optional arguments, error handling, and records with optional fields.
+
+# Definition
+@docs Maybe
+
+# Common Helpers
+@docs map, withDefault, oneOf
+
+# Chaining Maybes
+@docs andThen
+
+-}
 
 import Accessibility.Aria as Aria
 import Accessibility.Key as Key
 import Accessibility.Role as Role
 import Accessibility.Widget as Widget
+import Browser.Dom
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode
-import Menus.Internal.Base
+ 
 import Menus.Internal.Focus
 import Menus.Internal.KeyEvent
-import Menus.Internal.Select
+import Menus.Select
+import Menus.Focus
+import Task
 import ZipList
 
 
@@ -29,36 +46,72 @@ import ZipList
 -}
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type alias Focussed value =
     Menus.Internal.Focus.Focussed value
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type alias Selected value =
-    Menus.Internal.Select.Selected value
+    Menus.Select.Selected value
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type alias Options options =
     ZipList.ZipList options
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type alias Config options option value selected =
     { id : String
     , optionToLabel : option -> String
     , optionToValue : option -> options -> value
     , valueToString : value -> String
     , selectionToOption : selected -> Maybe option
-    , selectChange : Menus.Internal.Base.Direction -> selected -> options -> selected
+    , selectChange : Menus.Select.SelectAction -> selected -> options -> Menus.Select.Change selected
     , selectValue : value -> selected -> options -> selected
-    , focusChange : Menus.Internal.Base.Direction -> Maybe value -> options -> Maybe value
+    , focusChange : Menus.Focus.FocusAction -> Maybe value -> options -> Menus.Focus.Focus value
     , focusMatch : String -> options -> List option
     }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 findIndex : (a -> Bool) -> List a -> Maybe Int
 findIndex =
     findIndexHelp 0
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 findIndexHelp : Int -> (a -> Bool) -> List a -> Maybe Int
 findIndexHelp index predicate list =
     case list of
@@ -73,6 +126,12 @@ findIndexHelp index predicate list =
                 findIndexHelp (index + 1) predicate xs
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 ziplist : { id : String, optionToLabel : option -> String } -> Config (Options option) option Int (Options option)
 ziplist config =
     { id = config.id
@@ -85,78 +144,133 @@ ziplist config =
     , valueToString = String.fromInt
     , selectionToOption = Just << ZipList.current
     , selectChange =
-        \direction _ opts ->
-            case direction of
-                Menus.Internal.Base.Left ->
-                    ZipList.backward opts
+        \action _ opts ->
+            case action of
+                Menus.Select.MovedLeft ->
+                    Menus.Select.ChangedTo (ZipList.backward opts)
 
-                Menus.Internal.Base.Right ->
-                    ZipList.forward opts
+                Menus.Select.MovedRight ->
+                    Menus.Select.ChangedTo (ZipList.forward opts)
 
-                Menus.Internal.Base.Up ->
-                    opts
-
-                Menus.Internal.Base.Down ->
-                    opts
+                Menus.Select.Cleared ->
+                    Menus.Select.NotChanged
     , selectValue =
         \idx _ opts ->
             ZipList.goToIndex idx opts
                 |> Maybe.withDefault opts
     , focusChange =
-        \direction maybePreviousIdx opts ->
-            case direction of
-                Menus.Internal.Base.Up ->
+        \action maybePreviousIdx opts ->
+            case action of
+                Menus.Focus.MovedUp ->
                     case maybePreviousIdx of
                         Just previousIdx ->
-                            Just (max (previousIdx - 1) 0)
+                            Menus.Focus.On (max (previousIdx - 1) 0)
 
                         Nothing ->
-                            Just (ZipList.length opts - 1)
+                            Menus.Focus.On (ZipList.length opts - 1)
 
-                Menus.Internal.Base.Down ->
+                Menus.Focus.MovedDown ->
                     case maybePreviousIdx of
                         Just previousIdx ->
-                            Just (min (previousIdx + 1) (ZipList.length opts - 1))
+                            Menus.Focus.On (min (previousIdx + 1) (ZipList.length opts - 1))
 
                         Nothing ->
-                            Just 0
+                            Menus.Focus.On 0
 
-                Menus.Internal.Base.Left ->
-                    Nothing
+                Menus.Focus.MovedLeft ->
+                    Menus.Focus.Lost
 
-                Menus.Internal.Base.Right ->
-                    Nothing
+                Menus.Focus.MovedRight ->
+                    Menus.Focus.Lost
     , focusMatch =
         \str opts ->
             List.filter (String.startsWith (String.toLower str) << String.toLower << config.optionToLabel) (ZipList.toList opts)
     }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
+focusOnControl : Config options option value selected -> MsgConfig value msg -> Cmd msg
+focusOnControl config msgConfig =
+    Browser.Dom.focus (ids.control config.id)
+        |> Task.attempt (always msgConfig.onNoOp)
+
+
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type Inputted
     = InputAddedTo Char
     | InputCleared
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type State value
-    = Opened String (Menus.Internal.Focus.Focus value)
+    = Opened String (Menus.Focus.Focus value)
     | Closed
 
 
-closed : State value
-closed =
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
+init : State value
+init =
     Closed
 
 
-opened : State value -> value -> State value
-opened state default =
-    case state of
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
+closed : { config : Config options option value selected, msgConfig : MsgConfig value msg } -> ( State value, Cmd msg )
+closed args =
+    -- ( Closed, focusOnControl args.config args.msgConfig )
+    ( Closed, Cmd.none )
+
+
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
+opened : { state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg } -> value -> ( State value, Cmd msg )
+opened args default =
+    case args.state of
         Opened search value ->
-            Opened search value
+            ( Opened search value
+            , Cmd.none
+            )
 
         Closed ->
-            Opened "" (Menus.Internal.Focus.HasFocus default)
+            ( Opened "" (Menus.Focus.On default)
+            , focusOnControl args.config args.msgConfig
+            )
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 focussed : { msg : Menus.Internal.Focus.Focussed value, state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, options : options } -> ( State value, Cmd msg )
 focussed args =
     Menus.Internal.Focus.focussed args.msg
@@ -180,24 +294,36 @@ focussed args =
         }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 selected : { msg : Selected value, state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, options : options, selected : selected } -> ( selected, State value, Cmd msg )
 selected args =
     let
-        config : Menus.Internal.Select.Config selected value
+        config : Menus.Select.Config selected value
         config =
-            { selectChange = \direction -> args.config.selectChange direction args.selected args.options
+            { selectChange = \action -> args.config.selectChange action args.selected args.options
             , selectValue = \value -> args.config.selectValue value args.selected args.options
-            , currentlyFocussed = Menus.Internal.Focus.fromMaybe (currentlyFocussed args.state)
+            , currentlyFocussed = Menus.Focus.fromMaybe (currentlyFocussed args.state)
             }
     in
-    case Menus.Internal.Select.selected args.msg config of
+    case Menus.Select.selected args.msg config of
         Just selection ->
-            ( selection, Closed, Cmd.none )
+            ( selection, Closed, focusOnControl args.config args.msgConfig )
 
         Nothing ->
             ( args.selected, args.state, Cmd.none )
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 inputted : { msg : Inputted, state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, options : options } -> ( State value, Cmd msg )
 inputted args =
     case args.msg of
@@ -211,7 +337,7 @@ inputted args =
                     in
                     case args.config.focusMatch newSearch args.options of
                         match :: _ ->
-                            ( Opened newSearch (Menus.Internal.Focus.HasFocus (args.config.optionToValue match args.options)), Cmd.none )
+                            ( Opened newSearch (Menus.Focus.On (args.config.optionToValue match args.options)), Cmd.none )
 
                         [] ->
                             ( Opened newSearch focus, Cmd.none )
@@ -228,6 +354,12 @@ inputted args =
                     ( Closed, Cmd.none )
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 currentlyFocussed : State value -> Maybe value
 currentlyFocussed state =
     case state of
@@ -238,6 +370,12 @@ currentlyFocussed state =
             Nothing
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type alias MsgConfig value msg =
     { onOpened : msg
     , onClosed : msg
@@ -248,6 +386,12 @@ type alias MsgConfig value msg =
     }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 ids : { control : String -> String, options : String -> String, option : String -> String -> String }
 ids =
     { control = \id -> id ++ "-control"
@@ -256,6 +400,12 @@ ids =
     }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 isOpen : State value -> Bool
 isOpen state =
     state /= Closed
@@ -265,6 +415,12 @@ isOpen state =
 -- Views --
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type alias Token options option value selected msg =
     { state : State value
     , config : Config options option value selected
@@ -274,6 +430,12 @@ type alias Token options option value selected msg =
     }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 menuToken : { state : State value, config : Config options option value selected, msgConfig : MsgConfig value msg, selected : selected } -> Token options option value selected msg
 menuToken args =
     { state = args.state
@@ -290,6 +452,12 @@ menuToken args =
     }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 button : Token options option value selected msg -> List (Html.Attribute msg) -> (List (Html msg) -> Html msg)
 button token attributes =
     case token.state of
@@ -311,9 +479,10 @@ button token attributes =
                     , Aria.activeDescendant activeDescendant
                     , Events.onBlur token.msgConfig.onClosed
                     , Events.onClick token.msgConfig.onClosed
+                    , Key.tabbable True
                     , Menus.Internal.KeyEvent.onKeyDown
                         [ Menus.Internal.KeyEvent.escape token.msgConfig.onClosed
-                        , Menus.Internal.KeyEvent.enter (token.msgConfig.onSelected Menus.Internal.Select.SelectedFocussed)
+                        , Menus.Internal.KeyEvent.enter (token.msgConfig.onSelected Menus.Select.SelectedFocussed)
                         , Menus.Internal.Focus.keyEvents token.msgConfig
                         , Menus.Internal.KeyEvent.charKey (token.msgConfig.onInputted << InputAddedTo)
                         , Menus.Internal.KeyEvent.backspace (token.msgConfig.onInputted InputCleared)
@@ -329,9 +498,10 @@ button token attributes =
                     , Widget.hasListBoxPopUp
                     , Widget.expanded False
                     , Events.onClick token.msgConfig.onOpened
+                    , Key.tabbable True
                     , Menus.Internal.KeyEvent.onKeyDown
-                        [ Menus.Internal.KeyEvent.left (token.msgConfig.onSelected (Menus.Internal.Select.SelectChanged Menus.Internal.Base.Left))
-                        , Menus.Internal.KeyEvent.right (token.msgConfig.onSelected (Menus.Internal.Select.SelectChanged Menus.Internal.Base.Right))
+                        [ Menus.Internal.KeyEvent.left (token.msgConfig.onSelected (Menus.Select.SelectChanged Menus.Select.MovedLeft))
+                        , Menus.Internal.KeyEvent.right (token.msgConfig.onSelected (Menus.Select.SelectChanged Menus.Select.MovedRight))
                         , Menus.Internal.KeyEvent.down token.msgConfig.onOpened
                         , Menus.Internal.KeyEvent.up token.msgConfig.onOpened
                         ]
@@ -339,6 +509,12 @@ button token attributes =
                 )
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 options : Token options option value selected msg -> List (Html.Attribute msg) -> (List (Html msg) -> Html msg)
 options token attributes =
     Html.ul
@@ -351,6 +527,12 @@ options token attributes =
         )
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 option : Token options option value selected msg -> { value : value, isSelected : Bool } -> List (Html.Attribute msg) -> (List (Html Never) -> Html msg)
 option token args attributes =
     List.map (Html.map never)
@@ -362,6 +544,6 @@ option token args attributes =
                 , Key.tabbable False
                 , Menus.Internal.Focus.focusOnMouseMove token.msgConfig token.focussed args.value
                 , Events.preventDefaultOn "mousedown" (Json.Decode.succeed ( token.msgConfig.onNoOp, True ))
-                , Events.onClick (token.msgConfig.onSelected (Menus.Internal.Select.SelectedSpecific args.value))
+                , Events.onClick (token.msgConfig.onSelected (Menus.Select.SelectedSpecific args.value))
                 ]
             )

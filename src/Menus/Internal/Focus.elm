@@ -1,43 +1,29 @@
-module Menus.Internal.Focus exposing (Config, Focus(..), Focussed(..), focusOnMouseMove, focussed, fromMaybe, keyEvents, loseOnMouseLeave, toMaybe)
+module Menus.Internal.Focus exposing (Config, Focussed(..), focusOnMouseMove, focussed, keyEvents, loseOnMouseLeave, toMaybe)
 
 import Browser.Dom
 import Html
 import Html.Attributes
 import Html.Events
 import Json.Decode
-import Menus.Internal.Base
+ 
+import Menus.Focus
 import Menus.Internal.KeyEvent
 import Task
 
 
 type Focussed value
-    = FocussedChanged Menus.Internal.Base.Direction
+    = FocussedChanged Menus.Focus.FocusAction
     | FocussedSpecific value
     | FocusLost
 
 
-type Focus value
-    = HasFocus value
-    | NoFocus
-
-
-fromMaybe : Maybe value -> Focus value
-fromMaybe maybeValue =
-    case maybeValue of
-        Just value ->
-            HasFocus value
-
-        Nothing ->
-            NoFocus
-
-
-toMaybe : Focus value -> Maybe value
+toMaybe : Menus.Focus.Focus value -> Maybe value
 toMaybe focus =
     case focus of
-        HasFocus value ->
+        Menus.Focus.On value ->
             Just value
 
-        NoFocus ->
+        Menus.Focus.Lost ->
             Nothing
 
 
@@ -76,8 +62,8 @@ scrollIntoView optionId ulId msgConfig =
 
 
 type alias Config state value =
-    { focusChange : Menus.Internal.Base.Direction -> Maybe value
-    , updateFocus : Focus value -> state
+    { focusChange : Menus.Focus.FocusAction -> Menus.Focus.Focus value
+    , updateFocus : Menus.Focus.Focus value -> state
     , valueToId : value -> String
     , optionContainerId : String
     }
@@ -87,24 +73,24 @@ focussed : Focussed value -> state -> { msgConfig | onNoOp : msg } -> Config sta
 focussed msg state msgConfig config =
     case msg of
         FocussedSpecific value ->
-            ( config.updateFocus (HasFocus value)
+            ( config.updateFocus (Menus.Focus.On value)
             , scrollIntoView (config.valueToId value) config.optionContainerId msgConfig
             )
 
-        FocussedChanged direction ->
-            case config.focusChange direction of
-                Just newFocus ->
-                    ( config.updateFocus (HasFocus newFocus)
+        FocussedChanged action ->
+            case config.focusChange action of
+                Menus.Focus.On newFocus ->
+                    ( config.updateFocus (Menus.Focus.On newFocus)
                     , scrollIntoView (config.valueToId newFocus) config.optionContainerId msgConfig
                     )
 
-                Nothing ->
+                Menus.Focus.Lost ->
                     ( state
                     , Cmd.none
                     )
 
         FocusLost ->
-            ( config.updateFocus NoFocus
+            ( config.updateFocus Menus.Focus.Lost
             , Cmd.none
             )
 
@@ -112,10 +98,10 @@ focussed msg state msgConfig config =
 keyEvents : { msgConfig | onFocussed : Focussed value -> msg } -> Json.Decode.Decoder ( msg, Menus.Internal.KeyEvent.Opts )
 keyEvents msgConfig =
     Json.Decode.oneOf
-        [ Menus.Internal.KeyEvent.up (msgConfig.onFocussed (FocussedChanged Menus.Internal.Base.Up))
-        , Menus.Internal.KeyEvent.down (msgConfig.onFocussed (FocussedChanged Menus.Internal.Base.Down))
-        , Menus.Internal.KeyEvent.left (msgConfig.onFocussed (FocussedChanged Menus.Internal.Base.Left))
-        , Menus.Internal.KeyEvent.right (msgConfig.onFocussed (FocussedChanged Menus.Internal.Base.Right))
+        [ Menus.Internal.KeyEvent.up (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedUp))
+        , Menus.Internal.KeyEvent.down (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedDown))
+        , Menus.Internal.KeyEvent.left (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedLeft))
+        , Menus.Internal.KeyEvent.right (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedRight))
         ]
 
 

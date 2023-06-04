@@ -1,5 +1,19 @@
 module Menus.Menu exposing (Config, Focussed, MsgConfig, State, Token, button, closed, focussed, menuToken, opened, option, options)
 
+{-| This library fills a bunch of important niches in Elm. A `Maybe` can help
+you with optional arguments, error handling, and records with optional fields.
+
+# Definition
+@docs Maybe
+
+# Common Helpers
+@docs map, withDefault, oneOf
+
+# Chaining Maybes
+@docs andThen
+
+-}
+
 import Accessibility.Aria as Aria
 import Accessibility.Key as Key
 import Accessibility.Role as Role
@@ -8,21 +22,40 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode
-import Menus.Internal.Base
+ 
 import Menus.Internal.Focus
+import Menus.Focus
 import Menus.Internal.KeyEvent
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type alias Focussed =
     Menus.Internal.Focus.Focussed Int
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type alias Config options =
     { id : String
     , optionsLength : options -> Int
     }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 focussed : { msg : Focussed, state : State, config : Config options, msgConfig : MsgConfig msg, options : options } -> ( State, Cmd msg )
 focussed args =
     Menus.Internal.Focus.focussed args.msg
@@ -36,27 +69,27 @@ focussed args =
                         currentlyFocussed args.state
                 in
                 case direction of
-                    Menus.Internal.Base.Up ->
+                    Menus.Focus.MovedUp ->
                         case maybePreviousIdx of
                             Just previousIdx ->
-                                Just (max (previousIdx - 1) 0)
+                                Menus.Focus.On (max (previousIdx - 1) 0)
 
                             Nothing ->
-                                Just (args.config.optionsLength args.options - 1)
+                                Menus.Focus.On (args.config.optionsLength args.options - 1)
 
-                    Menus.Internal.Base.Down ->
+                    Menus.Focus.MovedDown ->
                         case maybePreviousIdx of
                             Just previousIdx ->
-                                Just (min (previousIdx + 1) (args.config.optionsLength args.options - 1))
+                                Menus.Focus.On (min (previousIdx + 1) (args.config.optionsLength args.options - 1))
 
                             Nothing ->
-                                Just 0
+                                Menus.Focus.On 0
 
-                    Menus.Internal.Base.Left ->
-                        Nothing
+                    Menus.Focus.MovedLeft ->
+                        Menus.Focus.Lost
 
-                    Menus.Internal.Base.Right ->
-                        Nothing
+                    Menus.Focus.MovedRight ->
+                        Menus.Focus.Lost
         , updateFocus =
             \newFocus ->
                 case args.state of
@@ -72,16 +105,34 @@ focussed args =
         }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type State
-    = Opened (Menus.Internal.Focus.Focus Int)
+    = Opened (Menus.Focus.Focus Int)
     | Closed
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 closed : State
 closed =
     Closed
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 opened : State -> Int -> State
 opened state default =
     case state of
@@ -89,9 +140,15 @@ opened state default =
             Opened value
 
         Closed ->
-            Opened (Menus.Internal.Focus.HasFocus default)
+            Opened (Menus.Focus.On default)
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 currentlyFocussed : State -> Maybe Int
 currentlyFocussed state =
     case state of
@@ -102,6 +159,12 @@ currentlyFocussed state =
             Nothing
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type alias MsgConfig msg =
     { onOpened : msg
     , onClosed : msg
@@ -110,6 +173,12 @@ type alias MsgConfig msg =
     }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 ids : { control : String -> String, options : String -> String, option : String -> String -> String }
 ids =
     { control = \id -> id ++ "-control"
@@ -127,6 +196,12 @@ ids =
 -- Views --
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 type alias Token options msg =
     { state : State
     , config : Config options
@@ -136,6 +211,12 @@ type alias Token options msg =
     }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 menuToken : { state : State, config : Config options, msgConfig : MsgConfig msg } -> Token options msg
 menuToken args =
     { state = args.state
@@ -152,6 +233,12 @@ menuToken args =
     }
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 button : Token options msg -> List (Html.Attribute msg) -> (List (Html msg) -> Html msg)
 button token attributes =
     case token.state of
@@ -188,6 +275,12 @@ button token attributes =
                 )
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 options : Token options msg -> List (Html.Attribute msg) -> (List (Html msg) -> Html msg)
 options token attributes =
     Html.ul
@@ -200,6 +293,12 @@ options token attributes =
         )
 
 
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+    fromList ['e','l','m'] == "elm"
+-}
 option : Token options msg -> { idx : Int } -> List (Html.Attribute msg) -> (List (Html Never) -> Html msg)
 option token args attributes =
     List.map (Html.map never)

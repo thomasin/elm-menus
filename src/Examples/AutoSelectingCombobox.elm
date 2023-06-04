@@ -1,4 +1,4 @@
-module Examples.BasicCombobox exposing (Model, Msg, init, update, view)
+module Examples.AutoSelectingCombobox exposing (Model, Msg, init, update, view)
 
 import Examples.MenuItem
 import Examples.Svg
@@ -24,14 +24,13 @@ type alias Msg =
 menuConfig : Bool -> Preset.Combobox.Config Examples.MenuItem.MenuItem
 menuConfig justOpened =
     Preset.Combobox.config justOpened
-        { id = "basic-combobox"
+        { id = "autoselecting-combobox"
         , optionToLabel = .label
         , optionToId = String.fromInt << .id
         , matchesInput = \str option -> String.toLower str == String.toLower option.label
         , containsInput = \str option -> String.startsWith (String.toLower str) (String.toLower option.label)
-        , visibleOptions = \config str selected options -> options
+        , visibleOptions = Preset.Combobox.autoSelect
         }
-
 
 init : ( Model, Cmd Msg )
 init =
@@ -78,39 +77,32 @@ view model =
                         , ( "z-0 opacity-0 pointer-events-none", not (Menus.Combobox.isOpen model.menu) )
                         ]
                     ]
-                    (case options of
-                        [] ->
-                            [ ( "", Html.text "No matching" )
-                            ]
-                        
-                        options_ ->
-                            List.map
-                                (\option ->
-                                    Menus.Combobox.option token
-                                        { value = option, isSelected = Just option == model.selected }
-                                        [ Attr.class "pt-1" ]
-                                        [ Html.div
-                                            [ Attr.class "flex cursor-default rounded px-3.5 py-3"
-                                            , Attr.classList
-                                                [ ( "bg-purple-100", Just option == token.focussed )
-                                                , ( "bg-transparent", not (Just option == token.focussed) )
-                                                ]
-                                            ]
-                                            [ Html.div
-                                                [ Attr.class "w-5 flex justify-center mr-2 text-purple-900"
-                                                ]
-                                                [ if Just option == model.selected then
-                                                    Examples.Svg.check
-
-                                                else
-                                                    Html.text option.emoji
-                                                ]
-                                            , Html.text option.label
-                                            ]
+                    (List.map
+                        (\option ->
+                            Menus.Combobox.option token
+                                { value = option, isSelected = Just option == model.selected }
+                                [ Attr.class "pt-1" ]
+                                [ Html.div
+                                    [ Attr.class "flex cursor-default rounded px-3.5 py-3"
+                                    , Attr.classList
+                                        [ ( "bg-purple-100", Just option == token.focussed )
+                                        , ( "bg-transparent", not (Just option == token.focussed) )
                                         ]
-                                )
-                            options
+                                    ]
+                                    [ Html.div
+                                        [ Attr.class "w-5 flex justify-center mr-2 text-purple-900"
+                                        ]
+                                        [ if Just option == model.selected then
+                                            Examples.Svg.check
+
+                                        else
+                                            Html.text option.emoji
+                                        ]
+                                    , Html.text option.label
+                                    ]
+                                ]
+                        )
+                        options
                     )
                 ]
         )
-
