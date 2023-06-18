@@ -45,66 +45,42 @@ import Menus.KeyEvent.Internal
 import Menus.Select.Internal
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList [ 'e', 'l', 'm' ] == "elm"
+{-| to-do
 
 -}
 type alias Focussed value =
     Menus.Focus.Internal.Focussed value
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList [ 'e', 'l', 'm' ] == "elm"
+{-| to-do
 
 -}
 type alias Selected value =
     Menus.Select.Internal.Selected value
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList [ 'e', 'l', 'm' ] == "elm"
+{-| to-do
 
 -}
 type alias Config options option value selected =
     Menus.Combobox.Internal.Config options option value selected
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList [ 'e', 'l', 'm' ] == "elm"
+{-| to-do
 
 -}
 type alias Emptiable options option value selected =
     Menus.Combobox.Internal.EmptiableConfig options option value selected
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList [ 'e', 'l', 'm' ] == "elm"
+{-| to-do
 
 -}
 type Inputted
     = InputChanged String
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList [ 'e', 'l', 'm' ] == "elm"
+{-| to-do
 
 -}
 emptiable : Emptiable options option value selected -> Config options option value selected
@@ -112,11 +88,7 @@ emptiable config =
     Menus.Combobox.Internal.Emptiable config
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList [ 'e', 'l', 'm' ] == "elm"
+{-| to-do
 
 -}
 type alias OpenState value =
