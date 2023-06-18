@@ -197,7 +197,7 @@ view model =
                     ]
                 , Html.div
                     []
-                    [ label Html.h3 "Multi select" "" "Choose more than one option (currently not exposed as a Preset, but Preset/MultiCombobox has copiable code)"
+                    [ label Html.h3 "Multi select" "" "Choose more than one option (currently not exposed as a Preset, need to finish the docs!)"
                     , Html.map MultiSelectCombobox (Examples.MultiSelectCombobox.view model.multiSelectCombobox)
                     ]
                 ]
