@@ -1,12 +1,12 @@
 module Main exposing (Model, Msg(..), main)
 
 import Browser
-import Examples.BasicCombobox
 import Examples.AutoSelectingCombobox
-import Examples.CreatableCombobox
-import Examples.MultiSelectCombobox
+import Examples.BasicCombobox
 import Examples.BasicListbox
 import Examples.BasicMenu
+import Examples.CreatableCombobox
+import Examples.MultiSelectCombobox
 import Html
 import Html.Attributes as Attr
 import Platform
@@ -177,7 +177,7 @@ view model =
             [ Html.text "Menus" ]
         , Html.div
             [ Attr.class "p-8" ]
-            [ label Html.h2 "Combobox" "https://www.w3.org/TR/wai-aria-practices/#combobox" ""
+            [ label Html.h2 "Combobox" "https://www.w3.org/WAI/ARIA/apg/patterns/combobox/" ""
             , Html.div
                 [ Attr.class "grid grid-cols-2 gap-y-8 bg-stone-50 rounded p-8" ]
                 [ Html.div
@@ -187,7 +187,7 @@ view model =
                     ]
                 , Html.div
                     []
-                    [ label Html.h3 "Auto selecting" "" "Automatically select the closest match to the input"
+                    [ label Html.h3 "Auto selecting + not clearable" "" "Automatically select the closest match to the input"
                     , Html.map AutoSelectingCombobox (Examples.AutoSelectingCombobox.view model.autoSelectingCombobox)
                     ]
                 , Html.div
@@ -197,14 +197,14 @@ view model =
                     ]
                 , Html.div
                     []
-                    [ label Html.h3 "Multi select" "" "Choose more than one option"
+                    [ label Html.h3 "Multi select" "" "Choose more than one option (currently not exposed as a Preset, but Preset/MultiCombobox has copiable code)"
                     , Html.map MultiSelectCombobox (Examples.MultiSelectCombobox.view model.multiSelectCombobox)
                     ]
                 ]
             ]
         , Html.div
             [ Attr.class "p-8" ]
-            [ label Html.h2 "Listbox" "https://www.w3.org/TR/wai-aria-practices/#Listbox" ""
+            [ label Html.h2 "Listbox" "https://www.w3.org/WAI/ARIA/apg/patterns/listbox/" ""
             , Html.div
                 [ Attr.class "grid grid-cols-2 gap-y-8 bg-stone-50 rounded p-8" ]
                 [ Html.div
@@ -215,8 +215,8 @@ view model =
                 ]
             ]
         , Html.div
-            [ Attr.class "p-8" ]
-            [ label Html.h2 "Menu" "https://www.w3.org/TR/wai-aria-practices/#menu" ""
+            [ Attr.class "p-8 mb-[300px]" ]
+            [ label Html.h2 "Menu" "https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/" ""
             , Html.div
                 [ Attr.class "grid grid-cols-2 gap-y-8 bg-stone-50 rounded p-8" ]
                 [ Html.div

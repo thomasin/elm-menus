@@ -1,4 +1,4 @@
-module Menus.Internal.KeyEvent exposing (Opts, backspace, charKey, down, enter, escape, left, onKeyDown, right, up)
+module Menus.KeyEvent.Internal exposing (Opts, backspace, charKey, down, enter, escape, left, onKeyDown, right, space, up)
 
 import Html
 import Html.Events as Events
@@ -33,14 +33,25 @@ enter msg =
     succeedForKey "Enter" msg strictOpts
 
 
+space : msg -> Json.Decode.Decoder ( msg, Opts )
+space msg =
+    succeedForKey " " msg strictOpts
+
+
 escape : msg -> Json.Decode.Decoder ( msg, Opts )
 escape msg =
     succeedForKey "Escape" msg strictOpts
 
 
-backspace : msg -> Json.Decode.Decoder ( msg, Opts )
+backspace : ({ selectionStart : Int, selectionEnd : Int } -> msg) -> Json.Decode.Decoder ( msg, Opts )
 backspace msg =
     succeedForKey "Backspace" msg strictOpts
+        |> Json.Decode.andThen
+            (\( _, opts ) ->
+                Json.Decode.map2 (\selectionStart selectionEnd -> ( msg { selectionStart = selectionStart, selectionEnd = selectionEnd }, opts ))
+                    (Json.Decode.at [ "target", "selectionStart" ] Json.Decode.int)
+                    (Json.Decode.at [ "target", "selectionEnd" ] Json.Decode.int)
+            )
 
 
 up : msg -> Json.Decode.Decoder ( msg, Opts )

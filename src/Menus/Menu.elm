@@ -1,184 +1,156 @@
-module Menus.Menu exposing (Config, Focussed, MsgConfig, State, Token, button, closed, focussed, menuToken, opened, option, options)
-
-{-| This library fills a bunch of important niches in Elm. A `Maybe` can help
-you with optional arguments, error handling, and records with optional fields.
-
-# Definition
-@docs Maybe
-
-# Common Helpers
-@docs map, withDefault, oneOf
-
-# Chaining Maybes
-@docs andThen
-
--}
+module Menus.Menu exposing (Config, Focussed, Link, MsgConfig, OpenDirection(..), State, Token, button, closed, focussed, init, link, menuToken, opened, options)
 
 import Accessibility.Aria as Aria
 import Accessibility.Key as Key
 import Accessibility.Role as Role
-import Accessibility.Widget as Widget
+import Browser.Dom
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode
- 
-import Menus.Internal.Focus
 import Menus.Focus
-import Menus.Internal.KeyEvent
+import Menus.Focus.Internal
+import Menus.KeyEvent.Internal
+import Task
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
+type OpenDirection
+    = Top
+    | Bottom
 
-    fromList ['e','l','m'] == "elm"
--}
+
 type alias Focussed =
-    Menus.Internal.Focus.Focussed Int
+    Menus.Focus.Internal.Focussed Int
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
--}
 type alias Config options =
     { id : String
     , optionsLength : options -> Int
     }
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
--}
 focussed : { msg : Focussed, state : State, config : Config options, msgConfig : MsgConfig msg, options : options } -> ( State, Cmd msg )
 focussed args =
-    Menus.Internal.Focus.focussed args.msg
-        args.state
-        args.msgConfig
-        { focusChange =
-            \direction ->
-                let
-                    maybePreviousIdx : Maybe Int
-                    maybePreviousIdx =
-                        currentlyFocussed args.state
-                in
-                case direction of
-                    Menus.Focus.MovedUp ->
-                        case maybePreviousIdx of
-                            Just previousIdx ->
-                                Menus.Focus.On (max (previousIdx - 1) 0)
+    let
+        ( state, cmd ) =
+            Menus.Focus.Internal.focussed args.msg
+                args.state
+                args.msgConfig
+                { focusChange =
+                    \direction ->
+                        let
+                            maybePreviousIdx : Maybe Int
+                            maybePreviousIdx =
+                                currentlyFocussed args.state
+                        in
+                        case direction of
+                            Menus.Focus.MovedUp ->
+                                case maybePreviousIdx of
+                                    Just previousIdx ->
+                                        Menus.Focus.On (max (previousIdx - 1) 0)
 
-                            Nothing ->
-                                Menus.Focus.On (args.config.optionsLength args.options - 1)
+                                    Nothing ->
+                                        Menus.Focus.On (args.config.optionsLength args.options - 1)
 
-                    Menus.Focus.MovedDown ->
-                        case maybePreviousIdx of
-                            Just previousIdx ->
-                                Menus.Focus.On (min (previousIdx + 1) (args.config.optionsLength args.options - 1))
+                            Menus.Focus.MovedDown ->
+                                case maybePreviousIdx of
+                                    Just previousIdx ->
+                                        Menus.Focus.On (min (previousIdx + 1) (args.config.optionsLength args.options - 1))
 
-                            Nothing ->
-                                Menus.Focus.On 0
+                                    Nothing ->
+                                        Menus.Focus.On 0
 
-                    Menus.Focus.MovedLeft ->
-                        Menus.Focus.Lost
+                            Menus.Focus.MovedLeft ->
+                                Menus.Focus.Lost
 
-                    Menus.Focus.MovedRight ->
-                        Menus.Focus.Lost
-        , updateFocus =
-            \newFocus ->
-                case args.state of
-                    Opened _ ->
+                            Menus.Focus.MovedRight ->
+                                Menus.Focus.Lost
+                , updateFocus =
+                    \newFocus ->
                         Opened newFocus
+                , valueToId =
+                    \idx ->
+                        ids.option args.config.id (String.fromInt idx)
+                , optionContainerId = ids.options args.config.id
+                }
+    in
+    case state of
+        Opened (Menus.Focus.On newFocus) ->
+            case args.state of
+                Opened (Menus.Focus.On oldFocus) ->
+                    if newFocus == oldFocus then
+                        ( state, cmd )
 
-                    Closed ->
-                        Closed
-        , valueToId =
-            \idx ->
-                ids.option args.config.id (String.fromInt idx)
-        , optionContainerId = ids.options args.config.id
-        }
+                    else
+                        ( state, Cmd.batch [ cmd, focusOnItem args.config.id newFocus args.msgConfig.onNoOp ] )
+
+                Opened Menus.Focus.Lost ->
+                    ( state, focusOnControl args.config.id args.msgConfig.onNoOp )
+
+                Closed ->
+                    ( state, Cmd.batch [ cmd, focusOnItem args.config.id newFocus args.msgConfig.onNoOp ] )
+
+        Opened Menus.Focus.Lost ->
+            ( state, focusOnControl args.config.id args.msgConfig.onNoOp )
+
+        Closed ->
+            ( Closed, cmd )
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
--}
 type State
     = Opened (Menus.Focus.Focus Int)
     | Closed
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
--}
-closed : State
-closed =
+init : State
+init =
     Closed
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
+closed : { config : Config options, msgConfig : MsgConfig msg } -> ( State, Cmd msg )
+closed _ =
+    ( Closed, Cmd.none )
 
-    fromList ['e','l','m'] == "elm"
--}
-opened : State -> Int -> State
-opened state default =
-    case state of
+
+opened : OpenDirection -> { config : Config options, state : State, msgConfig : MsgConfig msg, options : options } -> ( State, Cmd msg )
+opened openDirection args =
+    case args.state of
         Opened value ->
-            Opened value
+            ( Opened value
+            , Cmd.none
+            )
 
         Closed ->
-            Opened (Menus.Focus.On default)
+            case openDirection of
+                Top ->
+                    ( Opened (Menus.Focus.On 0)
+                    , focusOnItem args.config.id 0 args.msgConfig.onNoOp
+                    )
+
+                Bottom ->
+                    ( Opened (Menus.Focus.On (args.config.optionsLength args.options - 1))
+                    , focusOnItem args.config.id (args.config.optionsLength args.options - 1) args.msgConfig.onNoOp
+                    )
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
--}
 currentlyFocussed : State -> Maybe Int
 currentlyFocussed state =
     case state of
         Opened focus ->
-            Menus.Internal.Focus.toMaybe focus
+            Menus.Focus.Internal.toMaybe focus
 
         Closed ->
             Nothing
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
--}
 type alias MsgConfig msg =
-    { onOpened : msg
+    { onOpened : OpenDirection -> msg
     , onClosed : msg
     , onFocussed : Focussed -> msg
     , onNoOp : msg
     }
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
--}
 ids : { control : String -> String, options : String -> String, option : String -> String -> String }
 ids =
     { control = \id -> id ++ "-control"
@@ -196,12 +168,6 @@ ids =
 -- Views --
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
--}
 type alias Token options msg =
     { state : State
     , config : Config options
@@ -211,12 +177,6 @@ type alias Token options msg =
     }
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
--}
 menuToken : { state : State, config : Config options, msgConfig : MsgConfig msg } -> Token options msg
 menuToken args =
     { state = args.state
@@ -226,19 +186,57 @@ menuToken args =
     , focussed =
         case args.state of
             Opened focus ->
-                Menus.Internal.Focus.toMaybe focus
+                Menus.Focus.Internal.toMaybe focus
 
             Closed ->
                 Nothing
     }
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
+focusOnControl : String -> msg -> Cmd msg
+focusOnControl id onNoOp =
+    Browser.Dom.focus (ids.control id)
+        |> Task.attempt (always onNoOp)
 
-    fromList ['e','l','m'] == "elm"
--}
+
+focusOnItem : String -> Int -> msg -> Cmd msg
+focusOnItem id idx onNoOp =
+    Browser.Dom.focus (ids.option id (String.fromInt idx))
+        |> Task.attempt (always onNoOp)
+
+
+succeedIfClickIsOustideOfId : List String -> Json.Decode.Decoder ()
+succeedIfClickIsOustideOfId targetIds =
+    let
+        succeedIfParentsHaveId : () -> Json.Decode.Decoder ()
+        succeedIfParentsHaveId _ =
+            Json.Decode.field "id" Json.Decode.string
+                |> Json.Decode.andThen
+                    (\id ->
+                        if List.member id targetIds then
+                            Json.Decode.succeed ()
+
+                        else
+                            Json.Decode.field "parentNode" (succeedIfParentsHaveId ())
+                    )
+
+        invertDecoder : Json.Decode.Decoder a -> Json.Decode.Decoder ()
+        invertDecoder decoder =
+            Json.Decode.maybe decoder
+                |> Json.Decode.andThen
+                    (\maybe ->
+                        if maybe == Nothing then
+                            Json.Decode.succeed ()
+
+                        else
+                            Json.Decode.fail ""
+                    )
+    in
+    succeedIfParentsHaveId ()
+        |> Json.Decode.field "relatedTarget"
+        |> invertDecoder
+
+
 button : Token options msg -> List (Html.Attribute msg) -> (List (Html msg) -> Html msg)
 button token attributes =
     case token.state of
@@ -247,15 +245,14 @@ button token attributes =
                 (List.append attributes
                     [ Attr.id (ids.control token.config.id)
                     , Attr.type_ "button"
-                    , Widget.hasMenuPopUp
-                    , Widget.expanded True
-                    , Aria.controls (ids.options token.config.id)
-                    , Events.onBlur token.msgConfig.onClosed
-                    , Events.onClick token.msgConfig.onClosed
-                    , Menus.Internal.KeyEvent.onKeyDown
-                        [ Menus.Internal.KeyEvent.escape token.msgConfig.onClosed
-                        , Menus.Internal.Focus.keyEvents token.msgConfig
-                        ]
+                    , Aria.hasMenuPopUp
+                    , Aria.expanded True
+                    , Aria.controls [ ids.options token.config.id ]
+                    , Events.on "focusout"
+                        (Json.Decode.map
+                            (always token.msgConfig.onClosed)
+                            (succeedIfClickIsOustideOfId [ ids.options token.config.id, ids.control token.config.id ])
+                        )
                     ]
                 )
 
@@ -264,50 +261,73 @@ button token attributes =
                 (List.append attributes
                     [ Attr.id (ids.control token.config.id)
                     , Attr.type_ "button"
-                    , Widget.hasMenuPopUp
-                    , Widget.expanded False
-                    , Events.onClick token.msgConfig.onOpened
-                    , Menus.Internal.KeyEvent.onKeyDown
-                        [ Menus.Internal.KeyEvent.down token.msgConfig.onOpened
-                        , Menus.Internal.KeyEvent.up token.msgConfig.onOpened
+                    , Aria.hasMenuPopUp
+                    , Aria.expanded False
+                    , Events.onMouseDown (token.msgConfig.onOpened Top)
+                    , Menus.KeyEvent.Internal.onKeyDown
+                        [ Menus.KeyEvent.Internal.down (token.msgConfig.onOpened Top)
+                        , Menus.KeyEvent.Internal.up (token.msgConfig.onOpened Bottom)
+                        , Menus.KeyEvent.Internal.enter (token.msgConfig.onOpened Top)
+                        , Menus.KeyEvent.Internal.space (token.msgConfig.onOpened Top)
                         ]
                     ]
                 )
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
--}
 options : Token options msg -> List (Html.Attribute msg) -> (List (Html msg) -> Html msg)
 options token attributes =
     Html.ul
         (List.append attributes
             [ Attr.id (ids.options token.config.id)
             , Role.menu
+            , Aria.labelledBy (ids.control token.config.id)
             , Key.tabbable False
-            , Menus.Internal.Focus.loseOnMouseLeave token.msgConfig
+            , Menus.Focus.Internal.loseOnMouseLeave token.msgConfig
+            , Events.on "focusout"
+                (Json.Decode.map
+                    (always token.msgConfig.onClosed)
+                    (succeedIfClickIsOustideOfId [ ids.options token.config.id, ids.control token.config.id ])
+                )
             ]
         )
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
+type Link msg
+    = Link (Html msg)
 
-    fromList ['e','l','m'] == "elm"
--}
-option : Token options msg -> { idx : Int } -> List (Html.Attribute msg) -> (List (Html Never) -> Html msg)
-option token args attributes =
-    List.map (Html.map never)
-        >> Html.li
-            (List.append attributes
-                [ Attr.id (ids.option token.config.id (String.fromInt args.idx))
-                , Role.menuItem
-                , Key.tabbable False
-                , Events.preventDefaultOn "mousedown" (Json.Decode.succeed ( token.msgConfig.onNoOp, True ))
-                , Menus.Internal.Focus.focusOnMouseMove token.msgConfig token.focussed args.idx
+
+link : Token options msg -> { idx : Int } -> List (Html.Attribute msg) -> ((List (Html.Attribute msg) -> List (Html Never) -> Link msg) -> Link msg) -> Html msg
+link token args attributes func =
+    let
+        linkChild : List (Html.Attribute msg) -> List (Html Never) -> Link msg
+        linkChild linkAttributes linkChildren =
+            Link
+                (Html.a
+                    (List.append linkAttributes
+                        [ Attr.id (ids.option token.config.id (String.fromInt args.idx))
+                        , Role.menuItem
+                        , Key.tabbable False
+                        , Events.preventDefaultOn "mousedown" (Json.Decode.succeed ( token.msgConfig.onNoOp, True ))
+                        ]
+                    )
+                    (List.map (Html.map never) linkChildren)
+                )
+
+        (Link link_) =
+            func linkChild
+    in
+    Html.li
+        (List.append attributes
+            [ Attr.attribute "role" "none"
+            , Key.tabbable (Just args.idx == token.focussed)
+            , Events.stopPropagationOn "mousedown" (Json.Decode.succeed ( token.msgConfig.onNoOp, True ))
+            , Menus.Focus.Internal.focusOnMouseMove token.msgConfig token.focussed args.idx
+            , Events.onFocus (token.msgConfig.onFocussed (Menus.Focus.Internal.FocussedSpecific args.idx))
+            , Menus.KeyEvent.Internal.onKeyDown
+                [ Menus.KeyEvent.Internal.escape token.msgConfig.onClosed
+                , Menus.Focus.Internal.keyEvents token.msgConfig
                 ]
-            )
+            ]
+        )
+        [ link_
+        ]

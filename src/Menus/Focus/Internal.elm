@@ -1,13 +1,12 @@
-module Menus.Internal.Focus exposing (Config, Focussed(..), focusOnMouseMove, focussed, keyEvents, loseOnMouseLeave, toMaybe)
+module Menus.Focus.Internal exposing (Config, Focussed(..), focusOnMouseMove, focussed, keyEvents, loseOnMouseLeave, toMaybe)
 
 import Browser.Dom
 import Html
 import Html.Attributes
 import Html.Events
 import Json.Decode
- 
 import Menus.Focus
-import Menus.Internal.KeyEvent
+import Menus.KeyEvent.Internal
 import Task
 
 
@@ -95,13 +94,13 @@ focussed msg state msgConfig config =
             )
 
 
-keyEvents : { msgConfig | onFocussed : Focussed value -> msg } -> Json.Decode.Decoder ( msg, Menus.Internal.KeyEvent.Opts )
+keyEvents : { msgConfig | onFocussed : Focussed value -> msg } -> Json.Decode.Decoder ( msg, Menus.KeyEvent.Internal.Opts )
 keyEvents msgConfig =
     Json.Decode.oneOf
-        [ Menus.Internal.KeyEvent.up (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedUp))
-        , Menus.Internal.KeyEvent.down (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedDown))
-        , Menus.Internal.KeyEvent.left (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedLeft))
-        , Menus.Internal.KeyEvent.right (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedRight))
+        [ Menus.KeyEvent.Internal.up (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedUp))
+        , Menus.KeyEvent.Internal.down (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedDown))
+        , Menus.KeyEvent.Internal.left (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedLeft))
+        , Menus.KeyEvent.Internal.right (msgConfig.onFocussed (FocussedChanged Menus.Focus.MovedRight))
         ]
 
 

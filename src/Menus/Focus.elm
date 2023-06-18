@@ -1,24 +1,16 @@
-module Menus.Focus exposing (FocusAction(..), Focus(..), fromMaybe, toMaybe)
+module Menus.Focus exposing (FocusAction(..), Focus(..), fromMaybe)
 
-{-| This library fills a bunch of important niches in Elm. A `Maybe` can help
-you with optional arguments, error handling, and records with optional fields.
+{-| to-do
+
 
 # Definition
-@docs Maybe
 
-# Common Helpers
-@docs map, withDefault, oneOf
-
-# Chaining Maybes
-@docs andThen
+@docs FocusAction, Focus, fromMaybe
 
 -}
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
 
-    fromList ['e','l','m'] == "elm"
+{-| to-do
 -}
 type FocusAction
     = MovedLeft
@@ -27,22 +19,14 @@ type FocusAction
     | MovedDown
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
+{-| to-do
 -}
 type Focus value
     = On value
     | Lost
 
 
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
+{-| to-do
 -}
 fromMaybe : Maybe value -> Focus value
 fromMaybe maybeValue =
@@ -52,19 +36,3 @@ fromMaybe maybeValue =
 
         Nothing ->
             Lost
-
-
-{-| Convert a list of characters into a String. Can be useful if you
-want to create a string primarly by consing, perhaps for decoding
-something.
-
-    fromList ['e','l','m'] == "elm"
--}
-toMaybe : Focus value -> Maybe value
-toMaybe focus =
-    case focus of
-        On value ->
-            Just value
-
-        Lost ->
-            Nothing
