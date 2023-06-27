@@ -1,11 +1,11 @@
-module Preset.Combobox exposing (Model, init, Msg, update, menuOpened, menuClosed, Config, Context, OptionConfig, VisibleOptionConfig, config, autoSelect, CreatableConfig, creatable, view, isOpen, focussedOption, options, option, input, optionsDiv, Token)
+module Preset.Combobox exposing (Model, init, Msg, update, menuOpened, menuClosed, Config, Context, OptionConfig, VisibleOptionConfig, config, autoSelect, CreatableConfig, creatable, view, isOpen, focussedOption, options, option, input, optionsDiv, Token, token)
 
 {-| to-do
 
 
 # Definition
 
-@docs Model, init, Msg, update, menuOpened, menuClosed, Config, Context, OptionConfig, VisibleOptionConfig, config, autoSelect, CreatableConfig, creatable, view, isOpen, focussedOption, options, option, input, optionsDiv, Token
+@docs Model, init, Msg, update, menuOpened, menuClosed, Config, Context, OptionConfig, VisibleOptionConfig, config, autoSelect, CreatableConfig, creatable, view, isOpen, focussedOption, options, option, input, optionsDiv, Token, token
 
 -}
 
@@ -424,18 +424,40 @@ type Token option selection
     = Token (Menus.Combobox.Token (List option) option option selection (Msg option))
 
 
+{-| Create a token for use in view and helper functions
+-}
+token : { model : Model option, config : Context -> Config option selection, options : List option, selected : selection } -> Token option selection
+token args =
+    let
+        (Model model) =
+            args.model
+
+        (Config menuConfig) =
+            args.config (Context { justOpened = model.justOpened })
+    in
+    Token
+        (Menus.Combobox.menuToken
+            { state = model.menu
+            , config = menuConfig
+            , msgConfig = Preset.Combobox.Internal.menuMsgConfig
+            , options = args.options
+            , selected = args.selected
+            }
+        )
+
+
 {-| to-do
 -}
 isOpen : Token option selection -> Bool
-isOpen (Token token) =
-    Menus.Combobox.isOpen token.state
+isOpen (Token token_) =
+    Menus.Combobox.isOpen token_.state
 
 
 {-| to-do
 -}
 focussedOption : Token option selection -> Maybe option
-focussedOption (Token token) =
-    token.focussed
+focussedOption (Token token_) =
+    token_.focussed
 
 
 {-| to-do
@@ -465,28 +487,28 @@ view args func =
 {-| The input used to open and close the menu
 -}
 input : Token option selection -> ({ placeholder : String } -> List (Html.Attribute (Msg option)) -> Html.Html (Msg option))
-input (Token token) =
-    Menus.Combobox.input token
+input (Token token_) =
+    Menus.Combobox.input token_
 
 
 {-| A wrapper for the list of options in the menu.
 This should be a direct parent of your list of option nodes.
 -}
 options : Token option selection -> (List (Html.Attribute (Msg option)) -> List (Html.Html (Msg option)) -> Html.Html (Msg option))
-options (Token token) =
-    Menus.Combobox.options token
+options (Token token_) =
+    Menus.Combobox.options token_
 
 
 {-| A wrapper for the list of options in the menu.
 This should be a direct parent of your list of option nodes.
 -}
 optionsDiv : Token option selection -> (List (Html.Attribute (Msg option)) -> List (Html.Html (Msg option)) -> Html.Html (Msg option))
-optionsDiv (Token token) =
-    Menus.Combobox.optionsDiv token
+optionsDiv (Token token_) =
+    Menus.Combobox.optionsDiv token_
 
 
 {-| A focus and selectable option
 -}
 option : Token option selection -> ({ value : option, isSelected : Bool } -> List (Html.Attribute (Msg option)) -> List (Html.Html Never) -> Html.Html (Msg option))
-option (Token token) =
-    Menus.Combobox.option token
+option (Token token_) =
+    Menus.Combobox.option token_

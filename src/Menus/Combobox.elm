@@ -46,42 +46,36 @@ import Menus.Select.Internal
 
 
 {-| to-do
-
 -}
 type alias Focussed value =
     Menus.Focus.Internal.Focussed value
 
 
 {-| to-do
-
 -}
 type alias Selected value =
     Menus.Select.Internal.Selected value
 
 
 {-| to-do
-
 -}
 type alias Config options option value selected =
     Menus.Combobox.Internal.Config options option value selected
 
 
 {-| to-do
-
 -}
 type alias Emptiable options option value selected =
     Menus.Combobox.Internal.EmptiableConfig options option value selected
 
 
 {-| to-do
-
 -}
 type Inputted
     = InputChanged String
 
 
 {-| to-do
-
 -}
 emptiable : Emptiable options option value selected -> Config options option value selected
 emptiable config =
@@ -89,7 +83,6 @@ emptiable config =
 
 
 {-| to-do
-
 -}
 type alias OpenState value =
     { input : String
