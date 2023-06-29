@@ -1,12 +1,18 @@
 module Preset.Combobox exposing (Model, init, Msg, update, menuOpened, menuClosed, Config, Context, OptionConfig, VisibleOptionConfig, config, autoSelect, CreatableConfig, creatable, view, isOpen, focussedOption, options, option, input, optionsDiv, Token, token)
 
-{-| to-do
+{-| A custom combobox, with support for keyboard navigation
+This Preset can be used for basic comboboxes, without complex selection models
+or option/value relationships.
 
+@docs Model, Context, init, Msg, menuOpened, menuClosed, update
 
-# Definition
+## Configuration
 
-@docs Model, init, Msg, update, menuOpened, menuClosed, Config, Context, OptionConfig, VisibleOptionConfig, config, autoSelect, CreatableConfig, creatable, view, isOpen, focussedOption, options, option, input, optionsDiv, Token, token
+@docs Config, OptionConfig, config, VisibleOptionConfig, autoSelect, CreatableConfig, creatable
 
+## Views
+
+@docs view, isOpen, focussedOption, options, option, input, optionsDiv, Token, token
 -}
 
 import Html
@@ -19,7 +25,9 @@ import Menus.Select.Internal
 import Preset.Combobox.Internal
 
 
-{-| to-do
+{-| Stores whether the menu is open or not, and which option is currently focussed.  
+    It does _not_ store which option is selected.  
+    Is updated and returned in the [#update](#update) function.  
 -}
 type Model option
     = Model
@@ -28,19 +36,19 @@ type Model option
         }
 
 
-{-| to-do
+{-| Context is passed around internally, and is just used to track if the menu has been recently opened
 -}
 type Context
     = Context { justOpened : Bool }
 
 
-{-| to-do
+{-| Passed in to [#update](#update)  
 -}
 type alias Msg option =
     Preset.Combobox.Internal.Msg option
 
 
-{-| to-do
+{-| Initialise a closed menu, you can use this in your own init function
 -}
 init : Model option
 init =
@@ -50,7 +58,8 @@ init =
         }
 
 
-{-| to-do
+{-| Call this in your own update function, it returns the latest selection, 
+    the dropdown model, and `Cmd`s to pass on. You will need to save the selection and menu in your model.
 -}
 update : Msg option -> { model : Model option, config : Context -> Config option selection, options : List option, selected : selection } -> ( selection, Model option, Cmd (Msg option) )
 update msg args =
@@ -171,27 +180,41 @@ update msg args =
             )
 
 
-{-| to-do
+{-| A [#Msg](#Msg) that is sent when the menu is closed
 -}
 menuClosed : Msg option
 menuClosed =
     Preset.Combobox.Internal.menuMsgConfig.onClosed
 
 
-{-| to-do
+{-| A [#Msg](#Msg) that is sent when the menu is opened
 -}
 menuOpened : Msg option
 menuOpened =
     Preset.Combobox.Internal.menuMsgConfig.onOpened
 
 
-{-| to-do
+{-| Created in [#config](#config)  
+    This is passed into [#update](#update) and [#view](#view) and is used to control how the menu reacts to user input
 -}
 type Config option selection
     = Config (Menus.Combobox.Config (List option) option option selection)
 
 
-{-| to-do
+{-| Passed in to [#config](#config)  
+    - `id`: Must be unique, and is displayed in the HTML, used for accessibility  
+    - `optionToLabel`: Allows users to use keyboard input to search for options  
+    - `optionToId`: Uniquely identify each option
+    - `optionToSelection`: Turn any option into your selection, for instance you might want the selection to be `Maybe option`,
+        so you would have `optionToSelection = Just` 
+    - `selectionToOption`: Given the current selection and a list of options, find the option that corresponds to the selection.
+    - `selectionToLabel`: What to set as the menu input's value
+    - `selectionCleared`: When the user presses backspace, while the menu is closed or the input is empty, what should happen to the selection?
+        Returning `NotChanged` will make the combobox non-clearable.
+    - `matchesInput`: Given a string and an option, does the option exactly match the string?
+    - `containsInput`: Given a string and an option, does the option "contain" the string?
+    - `visibleOptions`: The Preset does some work under the scenes to already filter down visible options using data passed in from this config object,
+but there are a couple of "plugins", [#autoSelect](#autoSelect) and [#creatable](#creatable) you can use here to change how the combobox functions.
 -}
 type alias OptionConfig option selection =
     { id : String
@@ -207,7 +230,8 @@ type alias OptionConfig option selection =
     }
 
 
-{-| to-do
+{-| Create a [#Config](#Config) type. You don't need to explicitly pass in the `Context` yourself,
+    the [#update](#update) and [#view](#view) functions expect `Context -> Config option selection`.
 -}
 config : OptionConfig option selection -> Context -> Config option selection
 config optionConfig (Context context) =
@@ -350,7 +374,7 @@ config optionConfig (Context context) =
         )
 
 
-{-| to-do
+{-| This is passed down to the [#autoSelect](#autoSelect) and [#creatable](#creatable) plugins from the main config
 -}
 type alias VisibleOptionConfig option selection =
     { optionToLabel : option -> String
@@ -363,7 +387,15 @@ type alias VisibleOptionConfig option selection =
     }
 
 
-{-| to-do
+{-| This plugin will automatically select the closest match to the input.
+    If you are combining this with other plugins, use it last or any changes within the latter plugins won't be autoselected.
+
+
+    Preset.Combobox.config
+        { ...
+        , visibleOptions =
+            Preset.Combobox.autoSelect
+        }
 -}
 autoSelect : VisibleOptionConfig option selection -> String -> selection -> Maybe ( Menus.Active.Active option, List option ) -> Maybe ( Menus.Active.Active option, List option )
 autoSelect _ _ _ visibleOpts =
@@ -378,14 +410,23 @@ autoSelect _ _ _ visibleOpts =
             Nothing
 
 
-{-| to-do
+{-| Passed into [#creatable](#creatable)
+    Define how to create a new option, given a string
 -}
 type alias CreatableConfig option =
     { newOption : String -> option
     }
 
 
-{-| to-do
+{-| This plugin allows people to create new options when they enter input that doesn't exactly match any of the options.
+
+
+    Preset.Combobox.config
+        { ...
+        , visibleOptions =
+            Preset.Combobox.creatable
+                { newOption = \label -> NewOption label }
+        }
 -}
 creatable : CreatableConfig option -> VisibleOptionConfig option selection -> String -> selection -> Maybe ( Menus.Active.Active option, List option ) -> Maybe ( Menus.Active.Active option, List option )
 creatable creatableConfig optionConfig str _ visibleOpts =
@@ -418,13 +459,13 @@ creatable creatableConfig optionConfig str _ visibleOpts =
                 Just ( Menus.Active.Focussed (creatableConfig.newOption str), [ creatableConfig.newOption str ] )
 
 
-{-| to-do
+{-| Created automatically when you call [#view](#view), pass it in to view functions
 -}
 type Token option selection
     = Token (Menus.Combobox.Token (List option) option option selection (Msg option))
 
 
-{-| Create a token for use in view and helper functions
+{-| Create a token manually for use in view and helper functions
 -}
 token : { model : Model option, config : Context -> Config option selection, options : List option, selected : selection } -> Token option selection
 token args =
@@ -446,21 +487,21 @@ token args =
         )
 
 
-{-| to-do
+{-| Check whether the menu is open or closed
 -}
 isOpen : Token option selection -> Bool
 isOpen (Token token_) =
     Menus.Combobox.isOpen token_.state
 
 
-{-| to-do
+{-| Returns the currently focussed option
 -}
 focussedOption : Token option selection -> Maybe option
 focussedOption (Token token_) =
     token_.focussed
 
 
-{-| to-do
+{-| This needs to wrap your menu. It does not render any HTML, but provides a [#Token](#Token) that you pass into view functions, and also the currently visible options.
 -}
 view : { model : Model option, config : Context -> Config option selection, options : List option, selected : selection } -> (Token option selection -> List option -> Html.Html (Msg option)) -> Html.Html (Msg option)
 view args func =

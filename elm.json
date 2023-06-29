@@ -3,7 +3,7 @@
     "name": "thomasin/elm-menus",
     "summary": "WCAG menus",
     "license": "BSD-3-Clause",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "exposed-modules": [
         "Menus.Active",
         "Menus.Select",

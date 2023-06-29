@@ -5,7 +5,15 @@ This is an attempt to reimplement the native <select> element with custom
 styling. This a basic first step, that doesn't include support for multi-select,
 always open listboxes, or grouped options.
 
-@docs Model, Msg, OptionConfig, Config, init, update, Token, view, config, options, button, option, isOpen, focussedOption
+@docs Model, init, Msg, update
+
+## Configuration
+
+@docs Config, OptionConfig, config
+
+## View
+
+@docs Token, isOpen, focussedOption, view, options, button, option
 
 -}
 
@@ -22,25 +30,30 @@ import ZipList
 --
 
 
-{-| Store this in your model
+{-| Stores whether the menu is open or not, and which option is currently focussed.  
+    It does _not_ store which option is selected.  
+    Is updated and returned in the [#update](#update) function.  
 -}
 type Model
     = Model (Menus.Listbox.State Int)
 
 
-{-| Create in [#config](#config)
+{-| Created in [#config](#config)  
+    This is passed into [#update](#update) and [#view](#view) and is used to control how the menu reacts to user input
 -}
 type Config option
     = Config (Menus.Listbox.Config (ZipList.ZipList option) option Int (ZipList.ZipList option))
 
 
-{-| Convenience alias for Msg, passed in to [#update](#update)
+{-| Passed in to [#update](#update)  
 -}
 type alias Msg =
     Preset.Listbox.Internal.Msg
 
 
-{-| Pass in to [#config](#config)
+{-| Passed in to [#config](#config)  
+    The `id` field must be unique, and is displayed in the HTML, used for accessibility  
+    The `optionToLabel` field allows users to use keyboard input to search for options
 -}
 type alias OptionConfig option =
     { id : String
@@ -48,8 +61,7 @@ type alias OptionConfig option =
     }
 
 
-{-| Pass in an id to uniquely identity this dropdown.
-It _must_ be unique to the page or weird things will happen.
+{-| Create a [#Config](#Config) type  
 -}
 config : OptionConfig option -> Config option
 config optionConfig =
@@ -135,14 +147,15 @@ config optionConfig =
         }
 
 
-{-| Initialise a closed listbox
+{-| Initialise a closed menu, you can use this in your own init function
 -}
 init : Model
 init =
     Model Menus.Listbox.init
 
 
-{-| Call this in your update function
+{-| Call this in your own update function, it returns the list of options with the correct selection, 
+    the dropdown model, and `Cmd`s to pass on. You will need to save the updated options and menu in your model.
 -}
 update : Msg -> { model : Model, config : Config option, options : ZipList.ZipList option } -> ( ZipList.ZipList option, Model, Cmd Msg )
 update msg args =
@@ -239,13 +252,13 @@ update msg args =
             )
 
 
-{-| Passed in to view functions
+{-| Created automatically when you call [#view](#view), pass it in to view functions
 -}
 type Token option
     = Token (Menus.Listbox.Token (ZipList.ZipList option) option Int (ZipList.ZipList option) Msg)
 
 
-{-| Whether the menu is open or closed
+{-| Check whether the menu is open or closed
 -}
 isOpen : Token option -> Bool
 isOpen (Token token) =
@@ -257,14 +270,14 @@ isOpen (Token token) =
             False
 
 
-{-| Which item is focussed (returns an index)
+{-| Which option is focussed (returns an index)
 -}
 focussedOption : Token option -> Maybe Int
 focussedOption (Token token) =
     token.focussed
 
 
-{-| Generates a token for you
+{-| This needs to wrap your menu. It does not render any HTML, but provides a [#Token](#Token) that you pass into view functions, and also the current options.
 -}
 view : { model : Model, config : Config option, options : ZipList.ZipList option } -> (Token option -> ZipList.ZipList option -> Html.Html Msg) -> Html.Html Msg
 view args func =
@@ -304,7 +317,7 @@ options (Token token) =
     Menus.Listbox.options token
 
 
-{-| A focus and selectable option
+{-| A focusable and selectable option
 -}
 option : Token option -> ({ value : Int, isSelected : Bool } -> List (Html.Attribute Msg) -> List (Html.Html Never) -> Html.Html Msg)
 option (Token token) =

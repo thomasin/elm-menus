@@ -1,16 +1,13 @@
 module Menus.Select exposing (Change(..))
 
-{-| to-do
-
-
-# Definition
+{-| Define whether a selection should change or not
 
 @docs Change
 
 -}
 
 
-{-| to-do
+{-| Returned from `selectionCleared` in [#OptionConfig](#OptionConfig)
 -}
 type Change selection
     = ChangedTo selection
